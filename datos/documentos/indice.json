@@ -1,0 +1,74 @@
+[
+  {
+    "archivo": "01-aeat-requerimiento-irpf.pdf",
+    "fecha_limite_esperada": "2026-10-20 (10 días hábiles)",
+    "idioma": "es",
+    "organismo": "AGENCIA TRIBUTARIA · Delegación Especial de Valencia · Dependencia Regional de Gestión Tributaria",
+    "tipo": "REQUERIMIENTO DE DOCUMENTACIÓN",
+    "fecha_notificacion": "Fecha de notificación: 2 de octubre de 2026 (puesta a disposición en DEHú y accedida)"
+  },
+  {
+    "archivo": "02-aeat-propuesta-liquidacion.pdf",
+    "fecha_limite_esperada": "2026-10-22 (10 días hábiles)",
+    "idioma": "es",
+    "organismo": "AGENCIA TRIBUTARIA · Delegación Especial de Valencia · Dependencia Regional de Gestión Tributaria",
+    "tipo": "PROPUESTA DE LIQUIDACIÓN PROVISIONAL Y TRÁMITE DE ALEGACIONES",
+    "fecha_notificacion": "Fecha de notificación: 6 de octubre de 2026 (entrega en domicilio)"
+  },
+  {
+    "archivo": "03-dgt-denuncia-velocidad.pdf",
+    "fecha_limite_esperada": "2026-10-28 (20 días naturales: pago reducido o alegaciones)",
+    "idioma": "es",
+    "organismo": "DIRECCIÓN GENERAL DE TRÁFICO · Jefatura Provincial de Tráfico de Valencia",
+    "tipo": "NOTIFICACIÓN DE DENUNCIA",
+    "fecha_notificacion": "Fecha de notificación: 8 de octubre de 2026 (Dirección Electrónica Vial)"
+  },
+  {
+    "archivo": "04-aeat-providencia-apremio.pdf",
+    "fecha_limite_esperada": "2026-10-20 (art. 62.5 LGT)",
+    "idioma": "es",
+    "organismo": "AGENCIA TRIBUTARIA · Dependencia Regional de Recaudación de Valencia",
+    "tipo": "PROVIDENCIA DE APREMIO",
+    "fecha_notificacion": "Fecha de notificación: 13 de octubre de 2026"
+  },
+  {
+    "archivo": "05-sepe-requerimiento-prestacion.pdf",
+    "fecha_limite_esperada": "2026-10-23 (10 días hábiles)",
+    "idioma": "es",
+    "organismo": "SERVICIO PÚBLICO DE EMPLEO ESTATAL · Dirección Provincial de Valencia",
+    "tipo": "REQUERIMIENTO DE SUBSANACIÓN DE LA SOLICITUD",
+    "fecha_notificacion": "Fecha de notificación: 7 de octubre de 2026"
+  },
+  {
+    "archivo": "06-gva-rvi-denegacion-valencia.pdf",
+    "fecha_limite_esperada": "2026-11-09 (un mes; el 8/11 es domingo)",
+    "idioma": "va",
+    "organismo": "GENERALITAT VALENCIANA · Conselleria competent en serveis socials · Direcció Territorial de València",
+    "tipo": "RESOLUCIÓ DENEGATÒRIA",
+    "fecha_notificacion": "Data de notificació: 8 d'octubre de 2026"
+  },
+  {
+    "archivo": "07-ajuntament-baja-padron.pdf",
+    "fecha_limite_esperada": "2026-10-26 (15 días hábiles)",
+    "idioma": "es",
+    "organismo": "AJUNTAMENT DE VALÈNCIA · Servicio de Sociología y Estadística · Sección de Padrón",
+    "tipo": "TRÁMITE DE AUDIENCIA · INICIO DE EXPEDIENTE DE BAJA DE OFICIO EN EL PADRÓN MUNICIPAL",
+    "fecha_notificacion": "Fecha de notificación: 1 de octubre de 2026"
+  },
+  {
+    "archivo": "08-jez-miembro-mesa-29N.pdf",
+    "fecha_limite_esperada": "2026-11-10 (7 días naturales, plazos electorales LOREG art. 119)",
+    "idioma": "es",
+    "organismo": "AYUNTAMIENTO / JUNTA ELECTORAL DE ZONA DE VALÈNCIA · Elecciones Generales 29 de noviembre de 2026",
+    "tipo": "NOTIFICACIÓN DE DESIGNACIÓN COMO MIEMBRO DE MESA ELECTORAL",
+    "fecha_notificacion": "Fecha de notificación: 3 de noviembre de 2026"
+  },
+  {
+    "archivo": "09-inss-imv-requerimiento.pdf",
+    "fecha_limite_esperada": "2026-10-21 (10 días hábiles)",
+    "idioma": "es",
+    "organismo": "INSTITUTO NACIONAL DE LA SEGURIDAD SOCIAL · Dirección Provincial de Valencia",
+    "tipo": "REQUERIMIENTO DE DOCUMENTACIÓN · INGRESO MÍNIMO VITAL",
+    "fecha_notificacion": "Fecha de notificación: 5 de octubre de 2026"
+  }
+]
