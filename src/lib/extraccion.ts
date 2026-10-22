@@ -39,7 +39,7 @@ Reglas estrictas:
 - emisor: el organismo que firma el documento, tal como aparece en el membrete o la firma; null si no se ve claro.
 - tipoActo: qué es el documento en claro y corto (máx. 8 palabras), por ejemplo «Requerimiento de documentación» o «Notificación de denuncia de tráfico».
 - categoria: qué le pasa a la persona si no actúa. Solo UNA, la más grave que aplique, en este orden: PIERDE_DERECHO (pierde una prestación o un derecho: desistimiento, caducidad, baja de oficio), SANCION (multa o expediente sancionador), PAGAR (te piden ingresar dinero), HACER (te piden un trámite: aportar, subsanar, comparecer, identificarte), ACTUAR_SI_QUIERES (puedes alegar o recurrir si no estás de acuerdo, sin obligación), INFORMA (solo te informa).
-- idioma: código ISO 639-1 del idioma en que está ESCRITO el documento («es», «va»…), no el idioma de tu respuesta.
+- idioma: código ISO 639-1 del idioma en que está ESCRITO el documento («es», «va»…), no el idioma de tu respuesta. Y TODO lo que escribas (quéDice, queHacer, siNoHacesNada, siYaVencio) va en ese idioma: documento en valenciano, respuesta en valenciano.
 - queHacer: 1 a 6 pasos concretos (qué presentar, dónde y cómo: sede electrónica, registro, DEHú…). Si el documento no pide trámite alguno, lista vacía.
 - plazo.fraseOriginal: cita la frase original de la que sale el plazo, tal como aparece en el documento.
 - plazo.regla: la regla de cómputo en una línea, por ejemplo «10 días hábiles, Ley 39/2015 art. 30» o «20 días naturales, RDL 6/2015 art. 93.1».
