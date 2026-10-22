@@ -22,6 +22,13 @@ comprobar(parsearGuia("no hay json aquí") === null, "sin JSON devuelve null");
 comprobar(parsearGuia('{"texto": "", "pasos": []}') === null, "texto vacío devuelve null");
 const conExtras = parsearGuia('{"texto": "Hola", "pasos": ["a", "", 3, "b", "c", "d", "e"]}');
 comprobar(conExtras?.pasos.length === 4, "máximo 4 pasos, solo strings con contenido");
+const conObjetos = parsearGuia(
+  '{"texto": "Hola", "pasos": [{"paso": "Uno"}, {"texto": "Dos"}, 42, {"sin": "campo útil"}, "Tres"]}',
+);
+comprobar(
+  conObjetos?.pasos.length === 3 && conObjetos.pasos[0] === "Uno" && conObjetos.pasos[1] === "Dos",
+  "acepta pasos como objeto (paso/texto) y descarta el resto",
+);
 const largo = parsearGuia(JSON.stringify({ texto: "x".repeat(2000), pasos: [] }));
 comprobar(largo?.texto.length === 700, "el texto se recorta");
 

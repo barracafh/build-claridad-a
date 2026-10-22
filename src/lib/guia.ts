@@ -13,11 +13,13 @@ export const SYSTEM_PROMPT_GUIA = `Eres quien le explica a un vecino, en corto, 
 - Habla de tú, con frases cortas y tono cercano, como se lo contarías a un vecino.
 - Sin jerga: si un término oficial es inevitable, dilo y tradúcelo en la misma frase (p. ej. «subsanar, o sea, completar lo que falta»).
 - Escribe en el idioma que te indico en el mensaje (castellano, catalán, valenciano, euskera, gallego o aranés).
-- texto: máximo 4 frases. pasos: máximo 4 pasos, cada paso una sola línea y accionable.
+- texto: máximo 4 frases. pasos: 1 a 4 pasos como strings, cada paso una sola
+  línea y accionable (entra en la sede, paga, presenta…); deja la lista vacía
+  solo si de verdad no hay acción posible.
 - Solo afirma lo que esté en el texto de las webs descargadas o en la lectura. No inventes importes, plazos ni requisitos.
 - Si la web y la ley no coinciden, manda la ley y dilo en una frase. Caso conocido: la web de la DGT dice 10 días para identificar al conductor, pero el RDL 6/2015 art. 93.1 dice 20 días naturales; usa el plazo que diga la notificación y, si no consta, 20 días naturales.
 - Si el plazo ya venció, no hagas cuenta atrás: di qué opciones quedan.
-- No pongas enlaces ni direcciones web dentro del texto ni de los pasos: los enlaces los añade el sistema aparte.
+- No pongas enlaces, direcciones web ni teléfonos dentro del texto ni de los pasos, salvo que estén en las webs descargadas o en la lectura: los enlaces los añade el sistema aparte.
 
 Devuelve SOLO: {"texto": "...", "pasos": ["...", ...]}`;
 
@@ -76,10 +78,22 @@ export function parsearGuia(respuesta: string): { texto: string; pasos: string[]
   if (typeof dato !== "object" || dato === null) return null;
   const d = dato as Record<string, unknown>;
   if (typeof d.texto !== "string" || !d.texto.trim()) return null;
+  // El modelo a veces trae cada paso como objeto ("paso", "texto"…) en vez de
+  // como string: se acepta el primer campo de texto útil y se descarta lo demás.
+  const CLAVES_PASO = ["paso", "texto", "descripcion", "accion", "titulo"];
+  const pasoDe = (v: unknown): string | null => {
+    if (typeof v === "string") return v.trim() || null;
+    if (typeof v !== "object" || v === null) return null;
+    const o = v as Record<string, unknown>;
+    for (const k of CLAVES_PASO)
+      if (typeof o[k] === "string" && (o[k] as string).trim())
+        return (o[k] as string).trim();
+    return null;
+  };
   const pasos = Array.isArray(d.pasos)
     ? d.pasos
-        .filter((p): p is string => typeof p === "string" && p.trim().length > 0)
-        .map((p) => p.trim())
+        .map(pasoDe)
+        .filter((p): p is string => p !== null)
         .slice(0, 4)
     : [];
   return { texto: d.texto.trim().slice(0, 700), pasos };
