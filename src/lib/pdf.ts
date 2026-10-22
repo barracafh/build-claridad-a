@@ -39,7 +39,7 @@ export function procesarPdf(bytes: Uint8Array): PdfOk | PdfMal {
       return { ok: false, codigo: "formato" };
     }
     hojas.push(hoja);
-    const stext = page.toStructuredText();
+    const stext = page.toStructuredText({});
     textos.push(stext.asText());
     stext.destroy();
     page.destroy();
