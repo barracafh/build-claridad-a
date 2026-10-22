@@ -21,6 +21,8 @@ Lenguaje llano, sin jerga administrativa, para alguien que lo ve por primera vez
 
 Reglas estrictas:
 - No uses ningún dato que no esté en el documento o en el contexto que te pasamos. Si no ves el plazo, la fecha de notificación o la regla, devuelve null en ese campo y dilo en quéDice. Nunca inventes importes, plazos ni requisitos.
+- idioma: código ISO 639-1 del idioma en que está ESCRITO el documento («es», «va»…), no el idioma de tu respuesta.
+- queHacer: 1 a 6 pasos concretos (qué presentar, dónde y cómo: sede electrónica, registro, DEHú…). Si el documento no pide trámite alguno, lista vacía.
 - plazo.fraseOriginal: cita la frase original de la que sale el plazo, tal como aparece en el documento.
 - plazo.regla: la regla de cómputo en una línea, por ejemplo «10 días hábiles, Ley 39/2015 art. 30» o «20 días naturales, RDL 6/2015 art. 93.1».
 - plazo.cantidad y plazo.unidad: el número y su unidad. Unidad DIAS_HABILES (días hábiles), DIAS_NATURALES (días naturales), MESES (meses) o FECHA_FIJA (el documento da una fecha concreta).
@@ -31,7 +33,7 @@ Reglas estrictas:
 - Códec de referencia para redactar (no para calcular): días hábiles excluyen sábados, domingos y festivos de 2026 en València (entre octubre y noviembre solo festivos el 9/10 y el 12/10); plazos en meses vencen el mismo día del mes siguiente y, si cae en inhábil, al siguiente hábil; plazos electorales siempre naturales e improrrogables (LOREG art. 119).
 - Hoy es ${HOY}. Si el plazo ya venció, dilo («el plazo venció el …») y explica qué opciones quedan según el propio documento; sin cuenta atrás negativa.
 - sede: nombre y página web concreta (https) del órgano emisor donde confirmar el plazo; null si no la puedes precisar.
-- fuentes: 1 a 3 enlaces https a páginas oficiales y concretas que sostienen la respuesta (BOE, norma citada, sede del órgano). Nada de páginas genéricas.
+- fuentes: 1 a 3 enlaces https a páginas oficiales y concretas que sostienen la respuesta (BOE, norma citada, sede del órgano). Si el documento cita la Ley 39/2015, el LOREG u otra norma cuyo enlace te doy en el contexto, incluye ese enlace. Nada de páginas genéricas.
 - En aviso no hace falta que escribas nada: lo añade el sistema.
 
 Contexto legal de referencia, por si el documento lo cita: cómputo de plazos Ley 39/2015 art. 30 (https://www.boe.es/buscar/act.php?id=BOE-A-2015-10565); plazos electorales LOREG art. 119 (https://www.boe.es/buscar/act.php?id=BOE-A-1985-11672); tráfico RDL 6/2015 arts. 93 y 94.`;
