@@ -58,10 +58,14 @@ Reglas estrictas:
 
 Contexto legal de referencia, por si el documento lo cita: cómputo de plazos Ley 39/2015 art. 30 (https://www.boe.es/buscar/act.php?id=BOE-A-2015-10565); plazos electorales LOREG art. 119 (https://www.boe.es/buscar/act.php?id=BOE-A-1985-11672); tráfico RDL 6/2015 arts. 93 y 94.`;
 
-export function promptUsuario(texto: string): string {
+export function promptUsuario(texto: string, conImagenes = true): string {
   const parte =
     texto.trim().length > 0
-      ? `Capa de texto extraída del documento (si discrepan texto e imágenes, manda las imágenes):\n<<<\n${texto.trim().slice(0, 20000)}\n>>>`
+      ? `Capa de texto extraída del documento${
+          conImagenes
+            ? " (si discrepan texto e imágenes, manda las imágenes)"
+            : " (no se envían imágenes: léelo solo de este texto)"
+        }:\n<<<\n${texto.trim().slice(0, 20000)}\n>>>`
       : "No hay capa de texto extraída: léelo de las imágenes.";
   return `${parte}\n\nDevuelve solo el objeto JSON con el esquema acordado.`;
 }

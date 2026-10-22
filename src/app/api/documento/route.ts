@@ -15,6 +15,10 @@ import { procesarPdf } from "../../../lib/pdf";
 
 export const runtime = "nodejs";
 
+// Por debajo de estos caracteres sin espacios la capa de texto es un
+// escaneo: entonces toca leer de las imágenes.
+const MINIMO_TEXTO_UTIL = 200;
+
 export async function POST(req: Request) {
   const inicio = performance.now();
   const longitud = Number(req.headers.get("content-length"));
@@ -65,8 +69,14 @@ export async function POST(req: Request) {
             "No se ha podido leer el PDF. Comprueba que el archivo no esté dañado.",
             "formato",
           );
-    imagenes = pdf.hojas.map((h) => h.dataUrl);
     texto = pdf.texto;
+    // Si la capa de texto tiene contenido de verdad, sobra la visión: el
+    // modelo lee el texto, que pesa mucho menos que las imágenes. Si es un
+    // escaneo (texto casi vacío), se mandan las hojas como ahora.
+    imagenes =
+      texto.replace(/\s/g, "").length >= MINIMO_TEXTO_UTIL
+        ? []
+        : pdf.hojas.map((h) => h.dataUrl);
   } else {
     imagenes = [
       `data:image/${entrada.tipo === "png" ? "png" : "jpeg"};base64,${Buffer.from(bytes).toString("base64")}`,
@@ -81,7 +91,7 @@ export async function POST(req: Request) {
       role: "user",
       content: [
         ...imagenes.map((url) => ({ type: "image_url" as const, image_url: { url } })),
-        { type: "text" as const, text: promptUsuario(texto) },
+        { type: "text" as const, text: promptUsuario(texto, imagenes.length > 0) },
       ],
     },
   ];

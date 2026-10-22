@@ -4,7 +4,7 @@
 // Uso:
 //   bun scripts/medir-lectura.ts datos/documentos/01-aeat-requerimiento-irpf.pdf
 //   bun scripts/medir-lectura.ts <archivo> --sin-modelo  (solo rasterizado)
-//   bun scripts/medir-lectura.ts <archivo> --solo-texto  (experimento: sin imágenes)
+//   bun scripts/medir-lectura.ts <archivo> --con-imagenes  (fuerza las imágenes)
 import { readFileSync } from "node:fs";
 import indice from "../datos/documentos/indice.json";
 import { validarEntrada } from "../src/lib/entrada";
@@ -20,7 +20,7 @@ import {
 const args = process.argv.slice(2);
 const rutaArchivo = args.find((a) => !a.startsWith("--"));
 const sinModelo = args.includes("--sin-modelo");
-const soloTexto = args.includes("--solo-texto");
+const conImagenesForzado = args.includes("--con-imagenes");
 if (!rutaArchivo) {
   console.error(
     "Uso: bun scripts/medir-lectura.ts <archivo.pdf|jpg|png> [--sin-modelo] [--solo-texto]",
@@ -45,8 +45,13 @@ if (entrada.tipo === "pdf") {
     console.error(`PDF rechazado (${pdf.codigo}).`);
     process.exit(1);
   }
-  imagenes = soloTexto ? [] : pdf.hojas.map((h) => h.dataUrl);
   texto = pdf.texto;
+  // Igual que la ruta: con capa de texto de verdad no se envían imágenes.
+  // MINIMO_TEXTO_UTIL está en src/app/api/documento/route.ts.
+  imagenes =
+    !conImagenesForzado && texto.replace(/\s/g, "").length >= 200
+      ? []
+      : pdf.hojas.map((h) => h.dataUrl);
 } else {
   imagenes = [
     `data:image/${entrada.tipo === "png" ? "png" : "jpeg"};base64,${Buffer.from(bytes).toString("base64")}`,
@@ -57,7 +62,7 @@ const kbImagenes = Math.round(
   imagenes.reduce((n, d) => n + d.length, 0) / 1024,
 );
 console.log(
-  `raster: ${msRaster} ms · imágenes: ${imagenes.length} (${kbImagenes} KB base64) · capa de texto: ${texto.length} caracteres`,
+  `raster: ${msRaster} ms · imágenes: ${imagenes.length} (${kbImagenes} KB base64) · capa de texto: ${texto.length} caracteres${imagenes.length === 0 ? " (solo texto)" : ""}`,
 );
 if (sinModelo) process.exit(0);
 
