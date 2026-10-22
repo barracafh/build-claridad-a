@@ -1,19 +1,39 @@
 // Contrato que consume el front. El servidor devuelve un objeto `Lectura`
 // o un error { error, codigo }. Nada del documento del ciudadano viaja aquí.
+export type Categoria =
+  | "PIERDE_DERECHO"
+  | "SANCION"
+  | "PAGAR"
+  | "HACER"
+  | "ACTUAR_SI_QUIERES"
+  | "INFORMA";
+
+export type EstadoCalculo =
+  | "CALCULADA"
+  | "FALTA_FECHA_NOTIFICACION"
+  | "PLAZO_NO_IDENTIFICADO";
+
 export type Lectura = {
+  emisor: string | null;
+  tipoActo: string | null;
+  categoria: Categoria | null;
   queDice: string;
   queHacer: { texto: string }[];
   plazo: {
+    estado: EstadoCalculo;
+    fechaNotificacion: string | null;
     fechaLimite: string | null;
     vencido: boolean;
     fraseOriginal: string | null;
     regla: string | null;
   };
   siNoHacesNada: string;
+  siYaVencio: string | null;
   sede: { nombre: string; url: string } | null;
   fuentes: { nombre: string; url: string }[];
   aviso: string;
   idioma: string;
+  confianza: "ALTA" | "MEDIA" | "BAJA" | null;
 };
 
 export type CodigoError = "formato" | "tamano" | "paginas" | "lectura";
@@ -35,13 +55,18 @@ export type PlazoExtraido = {
 };
 
 export type ExtraccionModelo = {
+  emisor: string | null;
+  tipoActo: string | null;
+  categoria: Categoria | null;
   queDice: string;
   queHacer: { texto: string }[];
   plazo: PlazoExtraido;
   siNoHacesNada: string;
+  siYaVencio: string | null;
   sede: { nombre: string; url: string } | null;
   fuentes: { nombre: string; url: string }[];
   idioma: string;
+  confianza: "ALTA" | "MEDIA" | "BAJA" | null;
 };
 
 export const AVISO_FIJO =

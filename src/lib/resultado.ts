@@ -1,4 +1,5 @@
 import type { Source } from "@/components/Fuentes";
+import type { Lectura } from "./lectura";
 
 // Contrato entre la API y la pantalla. Versión reducida del esquema de
 // contexto.md, apartado 6.1: solo lo que la persona ve.
@@ -77,4 +78,46 @@ export function estadoPlazo(
   if (dias < 0) return { tipo: "vencido" };
   if (dias === 0) return { tipo: "hoy" };
   return { tipo: "en-plazo", dias };
+}
+
+// De lo que devuelve POST /api/documento (src/lib/lectura.ts) a lo que pinta
+// esta pantalla. Sin inventar datos: lo que no venga, con el texto genérico.
+export function deLectura(l: Lectura): Resultado {
+  const titular = l.tipoActo ?? primeraFrase(l.queDice);
+  return {
+    emisor: l.emisor ?? "Documento oficial",
+    tipoActo: titular,
+    titular,
+    queDice: l.queDice,
+    categoria: l.categoria ?? "HACER",
+    pasos: l.queHacer.map((q) => q.texto),
+    consecuencia: { claro: l.siNoHacesNada, literal: null },
+    donde: l.sede
+      ? {
+          texto: `Puedes confirmarlo en la web oficial: ${l.sede.nombre}.`,
+          sede: l.sede,
+        }
+      : {
+          texto:
+            "Confírmalo en la web o en la sede del organismo que te escribe.",
+          sede: null,
+        },
+    plazo: {
+      textoLiteral: l.plazo.fraseOriginal,
+      regla: l.plazo.regla ?? "Plazo no identificado",
+      fechaNotificacion: l.plazo.fechaNotificacion,
+      fechaLimite: l.plazo.fechaLimite,
+      estadoCalculo: l.plazo.estado,
+    },
+    siYaVencio:
+      l.siYaVencio ??
+      "Aun así, suele poder presentarse la documentación o el pago fuera de plazo; consulta al organismo qué opciones quedan.",
+    confianza: l.confianza ?? "MEDIA",
+    fuentes: l.fuentes,
+  };
+}
+
+function primeraFrase(texto: string): string {
+  const frase = texto.split(/(?<=[.!?…])\s/)[0] ?? texto;
+  return frase.length > 90 ? `${frase.slice(0, 87).trimEnd()}…` : frase;
 }

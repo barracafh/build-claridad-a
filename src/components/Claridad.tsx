@@ -2,16 +2,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Camera, FileText, Lock, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ruta } from "@/config/sitio";
+import type { Lectura } from "@/lib/lectura";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Fuentes } from "@/components/Fuentes";
+import { ejemploPorDefecto, ejemplos } from "@/datos/ejemplos";
 import {
-  ejemploPorArchivo,
-  ejemploPorDefecto,
-  ejemplos,
-} from "@/datos/ejemplos";
-import {
+  deLectura,
   estadoPlazo,
   fechaLarga,
   textoCategoria,
@@ -25,9 +24,16 @@ type Pantalla =
   | { tipo: "inicio" }
   | { tipo: "ejemplos" }
   | { tipo: "confirmar"; archivo: File; vista: string | null }
-  | { tipo: "leyendo"; resultado: Resultado | null }
+  | {
+      tipo: "leyendo";
+      resultado: Resultado | null;
+      ejemploFaltaFecha?: boolean;
+    }
   | { tipo: "falta-fecha" }
   | { tipo: "resultado"; resultado: Resultado; pagina: number };
+
+// Límite del servidor (4 MB en la petición): se comprueba antes de subir.
+const MAX_BYTES = 4 * 1024 * 1024;
 
 // Botones grandes: se usan con el pulgar y con poca vista.
 const grande = "h-14 w-full gap-3 rounded-xl text-lg bajo:h-12 bajo:text-base";
@@ -39,6 +45,9 @@ export function Claridad() {
   const titulo = useRef<HTMLHeadingElement>(null);
   const camara = useRef<HTMLInputElement>(null);
   const archivo = useRef<HTMLInputElement>(null);
+  // La carta que se está leyendo: hace falta si el servidor pide la fecha
+  // de notificación y hay que repetir la lectura con ella.
+  const pendiente = useRef<File | null>(null);
 
   // Al cambiar de pantalla, el foco va al titular (lectores de pantalla).
   const clave =
@@ -49,18 +58,65 @@ export function Claridad() {
     titulo.current?.focus();
   }, [clave]);
 
-  // Mock: simula el tiempo de lectura de la IA.
+  // Los ejemplos son datos inventados: se muestran al instante, sin IA.
   useEffect(() => {
     if (pantalla.tipo !== "leyendo") return;
-    const t = setTimeout(() => {
-      setPantalla(
-        pantalla.resultado
-          ? { tipo: "resultado", resultado: pantalla.resultado, pagina: 0 }
-          : { tipo: "falta-fecha" },
+    if (pantalla.resultado) {
+      const t = setTimeout(
+        () =>
+          setPantalla({
+            tipo: "resultado",
+            resultado: pantalla.resultado!,
+            pagina: 0,
+          }),
+        2200,
       );
-    }, 2200);
-    return () => clearTimeout(t);
+      return () => clearTimeout(t);
+    }
+    if (pantalla.ejemploFaltaFecha) {
+      const t = setTimeout(() => setPantalla({ tipo: "falta-fecha" }), 2200);
+      return () => clearTimeout(t);
+    }
+    // Con el archivo real, la respuesta llega al terminar la petición.
   }, [pantalla]);
+
+  async function leerArchivo(f: File, fecha?: string) {
+    setAviso(null);
+    pendiente.current = f;
+    setPantalla({ tipo: "leyendo", resultado: null });
+    try {
+      const datos = new FormData();
+      datos.append("documento", f);
+      if (fecha) datos.append("fecha", fecha);
+      const res = await fetch(ruta("/api/documento"), {
+        method: "POST",
+        body: datos,
+      });
+      if (!res.ok) {
+        const e = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setPantalla({ tipo: "inicio" });
+        setAviso(
+          e?.error ??
+            "No se ha podido leer tu carta ahora mismo. Prueba otra vez en unos segundos.",
+        );
+        return;
+      }
+      const lectura: Lectura = await res.json();
+      const resultado = deLectura(lectura);
+      if (resultado.plazo.estadoCalculo === "FALTA_FECHA_NOTIFICACION") {
+        setPantalla({ tipo: "falta-fecha" });
+        return;
+      }
+      setPantalla({ tipo: "resultado", resultado, pagina: 0 });
+    } catch {
+      setPantalla({ tipo: "inicio" });
+      setAviso(
+        "No se ha podido leer tu carta ahora mismo. Comprueba tu conexión y prueba otra vez.",
+      );
+    }
+  }
 
   const vistaPrevia = pantalla.tipo === "confirmar" ? pantalla.vista : null;
   useEffect(
@@ -71,11 +127,23 @@ export function Claridad() {
   );
 
   function abrir(f: File) {
-    const esImagen = f.type.startsWith("image/");
-    if (!esImagen && f.type !== "application/pdf") {
+    // El servidor solo lee PDF, JPG y PNG (es lo que ve el modelo de visión).
+    const tipoOk =
+      f.type === "" /* cámaras que no informan el tipo: lo decide el servidor */ ||
+      f.type === "application/pdf" ||
+      f.type === "image/jpeg" ||
+      f.type === "image/png";
+    if (!tipoOk) {
       setPantalla({ tipo: "inicio" });
       setAviso(
-        `«${f.name}» no es un PDF ni una foto. Prueba con la carta en PDF o con una foto.`,
+        `«${f.name}» no es un PDF ni una foto JPG o PNG. Prueba con la carta en PDF o con una foto.`,
+      );
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      setPantalla({ tipo: "inicio" });
+      setAviso(
+        `«${f.name}» es demasiado grande (más de 4 MB). Baja su tamaño o calidad y vuelve a intentarlo.`,
       );
       return;
     }
@@ -83,7 +151,7 @@ export function Claridad() {
     setPantalla({
       tipo: "confirmar",
       archivo: f,
-      vista: esImagen ? URL.createObjectURL(f) : null,
+      vista: f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
     });
   }
 
@@ -280,7 +348,11 @@ export function Claridad() {
                     variant="outline"
                     className={cn(grande, "justify-start text-left")}
                     onClick={() =>
-                      setPantalla({ tipo: "leyendo", resultado: null })
+                      setPantalla({
+                        tipo: "leyendo",
+                        resultado: null,
+                        ejemploFaltaFecha: true,
+                      })
                     }
                   >
                     <FileText aria-hidden="true" className="size-6" />
@@ -335,12 +407,7 @@ export function Claridad() {
               <Button
                 variant="sunset"
                 className={grande}
-                onClick={() =>
-                  setPantalla({
-                    tipo: "leyendo",
-                    resultado: ejemploPorArchivo(pantalla.archivo.name),
-                  })
-                }
+                onClick={() => leerArchivo(pantalla.archivo)}
               >
                 Sí, explícamela
               </Button>
@@ -369,7 +436,8 @@ export function Claridad() {
             Leyendo tu carta…
           </h1>
           <p className="mt-3 text-lg text-(--text-secondary) bajo:text-base">
-            Tarda unos segundos.
+            Suele tardar entre medio minuto y dos minutos. No cierres la
+            página.
           </p>
         </div>
       )}
@@ -377,13 +445,16 @@ export function Claridad() {
       {pantalla.tipo === "falta-fecha" && (
         <FaltaFecha
           titulo={titulo}
-          onSeguir={() =>
-            setPantalla({
-              tipo: "resultado",
-              resultado: ejemploPorDefecto,
-              pagina: 0,
-            })
-          }
+          onSeguir={(fecha) => {
+            const carta = pendiente.current;
+            if (carta) leerArchivo(carta, fecha);
+            else
+              setPantalla({
+                tipo: "resultado",
+                resultado: ejemploPorDefecto,
+                pagina: 0,
+              });
+          }}
           onVolver={inicio}
         />
       )}
@@ -429,7 +500,7 @@ function FaltaFecha({
   onVolver,
 }: {
   titulo: React.RefObject<HTMLHeadingElement | null>;
-  onSeguir: () => void;
+  onSeguir: (fecha: string) => void;
   onVolver: () => void;
 }) {
   const [fecha, setFecha] = useState("");
@@ -473,7 +544,7 @@ function FaltaFecha({
             variant="sunset"
             className={grande}
             disabled={!fecha}
-            onClick={onSeguir}
+            onClick={() => onSeguir(fecha)}
           >
             Seguir
           </Button>

@@ -2,7 +2,13 @@
 // `Lectura` (src/lib/lectura.ts). Todo en memoria: el archivo ni su texto
 // tocan disco, base de datos ni logs.
 import { MAX_BYTES_BODY, MAX_BYTES_IMAGEN, validarEntrada } from "../../../lib/entrada";
-import { montarLectura, parsearExtraccion, promptUsuario, SYSTEM_PROMPT } from "../../../lib/extraccion";
+import {
+  aplicarFechaUsuario,
+  montarLectura,
+  parsearExtraccion,
+  promptUsuario,
+  SYSTEM_PROMPT,
+} from "../../../lib/extraccion";
 import { completar, type Mensaje } from "../../../lib/ia";
 import { procesarPdf } from "../../../lib/pdf";
 
@@ -94,7 +100,13 @@ export async function POST(req: Request) {
       "No se ha podido leer el documento ahora mismo. Prueba otra vez en unos segundos.",
       "lectura",
     );
+  aplicarFechaUsuario(extraccion, textoFormulario(form.get("fecha")));
   return Response.json(montarLectura(extraccion));
+}
+
+// FormData también acepta strings; aquí solo nos vale el campo "fecha".
+function textoFormulario(valor: FormDataEntryValue | null): string | null {
+  return typeof valor === "string" ? valor : null;
 }
 
 function respuestaError(status: number, error: string, codigo: string) {
