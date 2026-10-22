@@ -29,7 +29,7 @@ Reglas estrictas:
 - plazo.fechaNotificacion: fecha de notificación en formato AAAA-MM-DD, extraída del documento; null si no consta.
 - plazo.fechaLiteral: solo si el documento fija la fecha límite concreta (por ejemplo «hasta el día 20 de este mismo mes»), en AAAA-MM-DD; si no, null.
 - plazo.electoral: true solo si es un documento electoral (por ejemplo, designación de miembro de mesa, LOREG art. 119): esos plazos son naturales e improrrogables.
-- NO calcules la fecha límite: la calcula el servidor a partir de los campos de plazo. Tú solo extraes los hechos.
+- NO calcules la fecha límite: la calcula el servidor a partir de los campos de plazo. Tú solo extraes los hechos. En queDice y siNoHacesNada no afirmes fechas de vencimiento: si el plazo ya venció, di «el plazo ya venció» y qué opciones quedan; la fecha concreta la aporta el servidor.
 - Códec de referencia para redactar (no para calcular): días hábiles excluyen sábados, domingos y festivos de 2026 en València (entre octubre y noviembre solo festivos el 9/10 y el 12/10); plazos en meses vencen el mismo día del mes siguiente y, si cae en inhábil, al siguiente hábil; plazos electorales siempre naturales e improrrogables (LOREG art. 119).
 - Hoy es ${HOY}. Si el plazo ya venció, dilo («el plazo venció el …») y explica qué opciones quedan según el propio documento; sin cuenta atrás negativa.
 - sede: nombre y página web concreta (https) del órgano emisor donde confirmar el plazo; null si no la puedes precisar.
