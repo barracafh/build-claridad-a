@@ -8,13 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Fuentes } from "@/components/Fuentes";
-import {
-  deLectura,
-  estadoPlazo,
-  fechaLarga,
-  textoCategoria,
-  type Resultado,
-} from "@/lib/resultado";
+import { useLengua } from "@/components/Lengua";
+import type { Textos } from "@/lib/textos";
+import { deLectura, estadoPlazo, type Resultado } from "@/lib/resultado";
 
 // Todo vive en memoria: ni el archivo ni el resultado se guardan. Al terminar
 // o al recargar, se pierde.
@@ -42,6 +38,7 @@ const grande = "h-14 w-full gap-3 rounded-xl text-lg bajo:h-12 bajo:text-base";
 const sol = "bg-brand-yellow text-foreground";
 
 export function Claridad() {
+  const { lengua, t } = useLengua();
   const [pantalla, setPantalla] = useState<Pantalla>({ tipo: "inicio" });
   const [carga, setCarga] = useState<Carga>({ fase: "subiendo", subida: 0 });
   const [aviso, setAviso] = useState<string | null>(null);
@@ -77,6 +74,8 @@ export function Claridad() {
     const datos = new FormData();
     datos.append("documento", f);
     if (fecha) datos.append("fecha", fecha);
+    // La lengua en la que la IA debe responder.
+    datos.append("idioma", lengua.codigo);
 
     const xhr = new XMLHttpRequest();
     peticion.current = xhr;
@@ -108,9 +107,9 @@ export function Claridad() {
       } catch {}
       if (xhr.status < 200 || xhr.status >= 300 || !cuerpo) {
         const error = (cuerpo as { error?: string } | null)?.error;
+        // Los errores del servidor vienen en castellano.
         volverConAviso(
-          error ??
-            "No se ha podido leer tu carta ahora mismo. Prueba otra vez en unos segundos.",
+          (lengua.codigo === "es" ? error : null) ?? t.errorLectura,
         );
         return;
       }
@@ -123,9 +122,7 @@ export function Claridad() {
     };
     xhr.onerror = () => {
       peticion.current = null;
-      volverConAviso(
-        "No se ha podido leer tu carta ahora mismo. Comprueba tu conexión y prueba otra vez.",
-      );
+      volverConAviso(t.errorConexion);
     };
     xhr.send(datos);
   }
@@ -133,7 +130,7 @@ export function Claridad() {
   function cancelar() {
     peticion.current?.abort();
     peticion.current = null;
-    volverConAviso("Has cancelado la lectura. No se ha guardado nada.");
+    volverConAviso(t.cancelado);
   }
 
   const vistaPrevia = pantalla.tipo === "confirmar" ? pantalla.vista : null;
@@ -152,14 +149,8 @@ export function Claridad() {
       f.type === "application/pdf" ||
       f.type === "image/jpeg" ||
       f.type === "image/png";
-    if (!tipoOk)
-      return volverConAviso(
-        `«${f.name}» no es un PDF ni una foto JPG o PNG. Prueba con la carta en PDF o con una foto.`,
-      );
-    if (f.size > MAX_BYTES)
-      return volverConAviso(
-        `«${f.name}» es demasiado grande (más de 4 MB). Baja su tamaño o calidad y vuelve a intentarlo.`,
-      );
+    if (!tipoOk) return volverConAviso(t.noFormato(f.name));
+    if (f.size > MAX_BYTES) return volverConAviso(t.muyGrande(f.name));
     setAviso(null);
     setPantalla({
       tipo: "confirmar",
@@ -253,7 +244,7 @@ export function Claridad() {
         >
           <p className="flex flex-col items-center gap-4 text-2xl font-medium">
             <FileText className="size-12" />
-            Suelta aquí la carta
+            {t.soltar}
           </p>
         </div>
       )}
@@ -265,16 +256,15 @@ export function Claridad() {
               <h1
                 ref={titulo}
                 tabIndex={-1}
-                className="text-[clamp(32px,8vw,48px)] leading-[1.1] tracking-[-0.02em] outline-none bajo:text-[26px]"
+                className="text-[clamp(28px,7vw,40px)] leading-[1.1] tracking-[-0.02em] outline-none bajo:text-[24px]"
               >
-                ¿Qué carta te ha llegado?
+                {t.titulo}
               </h1>
               <p className="mt-3 text-lg text-(--text-secondary) bajo:text-base">
-                Hazle una foto o elige el PDF. Te explicamos qué dice, qué
-                tienes que hacer y hasta cuándo.
+                {t.intro}
                 <span className="hidden pointer-fine:inline">
                   {" "}
-                  También puedes arrastrarla aquí.
+                  {t.arrastrar}
                 </span>
               </p>
               {aviso && (
@@ -287,10 +277,7 @@ export function Claridad() {
               )}
               <p className="mt-4 flex gap-3 rounded-xl bg-muted px-4 py-3 text-base bajo:mt-2">
                 <Lock aria-hidden="true" className="mt-1 size-5 shrink-0" />
-                <span>
-                  No guardamos tu carta. Para leerla, se envía a una
-                  inteligencia artificial externa y se borra al terminar.
-                </span>
+                <span>{t.privacidad}</span>
               </p>
             </>
           }
@@ -302,7 +289,7 @@ export function Claridad() {
                 onClick={() => camara.current?.click()}
               >
                 <Camera aria-hidden="true" className="size-6" />
-                Hacer una foto a la carta
+                {t.foto}
               </Button>
               <Button
                 variant="outline"
@@ -310,7 +297,7 @@ export function Claridad() {
                 onClick={() => archivo.current?.click()}
               >
                 <FileText aria-hidden="true" className="size-6" />
-                Elegir un PDF o una foto
+                {t.elegir}
               </Button>
             </>
           }
@@ -326,14 +313,14 @@ export function Claridad() {
                 tabIndex={-1}
                 className="text-[clamp(28px,7vw,40px)] leading-[1.1] outline-none bajo:text-[26px]"
               >
-                ¿Es esta la carta?
+                {t.confirmarTitulo}
               </h1>
               <div className="mt-6 flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl bg-muted p-4 bajo:mt-3">
                 {pantalla.vista ? (
                   // eslint-disable-next-line @next/next/no-img-element -- vista local de un blob, no pasa por next/image
                   <img
                     src={pantalla.vista}
-                    alt="Foto de la carta que has elegido"
+                    alt={t.fotoAlt}
                     className="max-h-full min-h-0 rounded-lg object-contain"
                   />
                 ) : (
@@ -354,10 +341,10 @@ export function Claridad() {
                 className={grande}
                 onClick={() => leerArchivo(pantalla.archivo)}
               >
-                Sí, explícamela
+                {t.si}
               </Button>
               <Button variant="outline" className={grande} onClick={inicio}>
-                No, elegir otra
+                {t.no}
               </Button>
             </>
           }
@@ -369,7 +356,7 @@ export function Claridad() {
           cuerpo={<Progreso carga={carga} titulo={titulo} />}
           acciones={
             <Button variant="outline" className={grande} onClick={cancelar}>
-              Cancelar
+              {t.cancelar}
             </Button>
           }
         />
@@ -430,6 +417,7 @@ function Progreso({
   carga: Carga;
   titulo: React.RefObject<HTMLHeadingElement | null>;
 }) {
+  const { t } = useLengua();
   const [ahora, setAhora] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setAhora(Date.now()), 250);
@@ -440,18 +428,18 @@ function Progreso({
   let etapa: string;
   if (carga.fase === "subiendo") {
     porcentaje = 2 + 18 * carga.subida;
-    etapa = `Subiendo tu carta (${Math.round(carga.subida * 100)} %)`;
+    etapa = t.subiendo(Math.round(carga.subida * 100));
   } else {
-    const t = Math.max(0, ahora - carga.desde);
-    porcentaje = 20 + 75 * (1 - Math.exp(-t / (LECTURA_ESTIMADA_MS / 2.3)));
+    const ms = Math.max(0, ahora - carga.desde);
+    porcentaje = 20 + 75 * (1 - Math.exp(-ms / (LECTURA_ESTIMADA_MS / 2.3)));
     etapa =
-      t < 10_000
-        ? "Leyendo el texto de la carta"
-        : t < 35_000
-          ? "Buscando qué te piden y el plazo"
-          : t < 90_000
-            ? "Preparando tu resumen"
-            : "Está tardando más de lo normal. Sigue esperando";
+      ms < 10_000
+        ? t.etapas[0]
+        : ms < 35_000
+          ? t.etapas[1]
+          : ms < 90_000
+            ? t.etapas[2]
+            : t.etapas[3];
   }
   const valor = Math.round(porcentaje);
 
@@ -462,11 +450,11 @@ function Progreso({
         tabIndex={-1}
         className="text-[clamp(28px,7vw,40px)] leading-[1.1] outline-none bajo:text-[26px]"
       >
-        Leyendo tu carta…
+        {t.leyendoTitulo}
       </h1>
       <div
         role="progressbar"
-        aria-label="Progreso de la lectura"
+        aria-label={t.progresoLabel}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={valor}
@@ -481,9 +469,7 @@ function Progreso({
       <p aria-live="polite" className="mt-4 text-lg font-medium bajo:text-base">
         {etapa}
       </p>
-      <p className="mt-2 text-base text-(--text-secondary)">
-        Suele tardar entre medio minuto y dos minutos. No cierres la página.
-      </p>
+      <p className="mt-2 text-base text-(--text-secondary)">{t.espera}</p>
     </div>
   );
 }
@@ -498,6 +484,7 @@ function FaltaFecha({
   onSeguir: (fecha: string) => void;
   onVolver: () => void;
 }) {
+  const { t } = useLengua();
   const [fecha, setFecha] = useState("");
   return (
     <Vista
@@ -508,17 +495,16 @@ function FaltaFecha({
             tabIndex={-1}
             className="text-[clamp(28px,7vw,40px)] leading-[1.1] outline-none bajo:text-[26px]"
           >
-            ¿Qué día te llegó la carta?
+            {t.fechaTitulo}
           </h1>
           <p className="mt-3 text-lg text-(--text-secondary) bajo:text-base">
-            La carta no lo dice, y sin ese día no podemos calcular hasta cuándo
-            tienes.
+            {t.fechaIntro}
           </p>
           <label
             htmlFor="fecha"
             className="mt-6 text-base font-medium bajo:mt-3"
           >
-            Día en que la recibiste
+            {t.fechaLabel}
           </label>
           <input
             id="fecha"
@@ -528,8 +514,7 @@ function FaltaFecha({
             className="mt-2 h-14 w-full rounded-xl border border-input bg-background px-4 text-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
           <p className="mt-4 text-base text-(--text-secondary) bajo:mt-2">
-            Mira el sello de Correos o el aviso de la notificación electrónica.
-            El día del SMS o del email de aviso no vale.
+            {t.fechaAyuda}
           </p>
         </>
       }
@@ -541,18 +526,16 @@ function FaltaFecha({
             disabled={!fecha}
             onClick={() => onSeguir(fecha)}
           >
-            Seguir
+            {t.seguir}
           </Button>
           <Button variant="outline" className={grande} onClick={onVolver}>
-            No lo sé, empezar de nuevo
+            {t.noLoSe}
           </Button>
         </>
       }
     />
   );
 }
-
-const partes = ["Resumen", "Qué hacer", "Detalles"] as const;
 
 // El resultado en tres partes, con pestañas para saltar entre ellas.
 function PaginasResultado({
@@ -568,6 +551,8 @@ function PaginasResultado({
   irA: (pagina: number) => void;
   onTerminar: () => void;
 }) {
+  const { t } = useLengua();
+  const partes = t.partes;
   // Lo marcado vive solo en memoria mientras se ve el resultado.
   const [hechos, setHechos] = useState<boolean[]>([]);
 
@@ -596,30 +581,27 @@ function PaginasResultado({
         {r.emisor}
       </p>
       <div className="mt-2">{h1(r.titular, "line-clamp-3")}</div>
-      <TarjetaPlazo resultado={r} />
+      <TarjetaPlazo resultado={r} t={t} />
       <Badge
         variant="outline"
         className="mt-3 h-auto self-start py-1 text-sm whitespace-normal bajo:mt-2"
       >
-        {textoCategoria[r.categoria]}
+        {t.categorias[r.categoria]}
       </Badge>
       <p className="mt-4 text-lg bajo:mt-2 bajo:text-base">
-        <span className="font-medium">Si no haces nada: </span>
+        <span className="font-medium">{t.siNoHaces}</span>
         {r.consecuencia.claro}
       </p>
     </>,
     <>
-      {h1("¿Qué tienes que hacer?")}
+      {h1(t.queHacerTitulo)}
       {r.pasos.length === 0 ? (
         <p className="mt-4 rounded-xl bg-muted px-4 py-3 text-lg bajo:mt-2 bajo:text-base">
-          No hemos podido sacar los pasos de esta carta. Mira el resumen en
-          «Detalles» y confírmalo con el organismo que te escribe.
+          {t.sinPasos}
         </p>
       ) : (
         <>
-          <p className="mt-1 text-base text-(--text-secondary)">
-            Márcalos según los hagas. No se guarda.
-          </p>
+          <p className="mt-1 text-base text-(--text-secondary)">{t.marcar}</p>
           {/* El texto queda fuera del checkbox para poder seleccionarlo y copiarlo. */}
           <ol className="mt-4 grid gap-3 bajo:mt-2 bajo:gap-2">
             {r.pasos.map((paso, i) => (
@@ -664,7 +646,7 @@ function PaginasResultado({
           )}
         >
           <span className="text-sm font-normal text-(--text-secondary)">
-            Dónde se hace
+            {t.dondeSeHace}
           </span>
           <span>
             {r.donde.sede.nombre} <span aria-hidden="true">↗</span>
@@ -676,40 +658,37 @@ function PaginasResultado({
         </a>
       ) : (
         <p className="mt-4 text-base bajo:mt-2">
-          <span className="font-medium">Dónde se hace: </span>
-          {r.donde.texto}
+          <span className="font-medium">{t.dondeSeHace}: </span>
+          {t.dondeSinSede}
         </p>
       )}
     </>,
     <>
-      {h1("De dónde sale todo esto")}
+      {h1(t.detallesTitulo)}
       <div className="mt-4 grid gap-2 bajo:mt-2">
-        <Desplegable resumen="Qué dice la carta, completo">
+        <Desplegable resumen={t.completo}>
           <p>{r.queDice}</p>
         </Desplegable>
         {r.plazo.textoLiteral && (
-          <Desplegable resumen="La frase del plazo">
+          <Desplegable resumen={t.frasePlazo}>
             <blockquote className="border-l-4 border-brand pl-3">
               «{r.plazo.textoLiteral}»
             </blockquote>
             <p className="mt-2 font-mono text-sm">{r.plazo.regla}</p>
-            <p className="mt-2 text-(--text-secondary)">
-              Calculado con el calendario nacional y de la Comunitat Valenciana.
-              No incluye festivos locales.
-            </p>
+            <p className="mt-2 text-(--text-secondary)">{t.calendario}</p>
           </Desplegable>
         )}
         {r.consecuencia.literal && (
-          <Desplegable resumen="Lo que pasa si no haces nada">
+          <Desplegable resumen={t.siNoHacesLiteral}>
             <p>«{r.consecuencia.literal}»</p>
           </Desplegable>
         )}
       </div>
       <p className="mt-4 text-base text-(--text-secondary) bajo:mt-2">
-        Orientativo, no es asesoramiento legal. Confírmalo con quien te escribe.
+        {t.orientativo}
       </p>
       <div className="mt-4 bajo:mt-2">
-        <Fuentes fuentes={r.fuentes} />
+        <Fuentes fuentes={r.fuentes} titulo={t.fuentes} />
       </div>
     </>,
   ];
@@ -718,10 +697,7 @@ function PaginasResultado({
 
   return (
     <>
-      <nav
-        aria-label="Partes del resultado"
-        className="shrink-0 pt-4 bajo:pt-2"
-      >
+      <nav aria-label={t.partesLabel} className="shrink-0 pt-4 bajo:pt-2">
         <ol className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
           {partes.map((parte, i) => (
             <li key={parte}>
@@ -748,17 +724,18 @@ function PaginasResultado({
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
             <Button
               variant="outline"
-              className={grande}
+              // En algunas lenguas el texto es largo: puede partirse en dos líneas.
+              className={cn(grande, "px-2 leading-tight whitespace-normal")}
               onClick={() => (pagina === 0 ? onTerminar() : irA(pagina - 1))}
             >
-              {pagina === 0 ? "Otra carta" : "Atrás"}
+              {pagina === 0 ? t.otro : t.atras}
             </Button>
             <Button
               variant="sunset"
-              className={grande}
+              className={cn(grande, "px-2 leading-tight whitespace-normal")}
               onClick={() => (ultima ? onTerminar() : irA(pagina + 1))}
             >
-              {ultima ? "Leer otra carta" : `Siguiente: ${partes[pagina + 1]}`}
+              {ultima ? t.leerOtro : t.siguiente(partes[pagina + 1])}
             </Button>
           </div>
         }
@@ -794,7 +771,13 @@ function Desplegable({
 }
 
 // La tarjeta del sol de esta vista: la fecha límite (contexto.md 6.1).
-function TarjetaPlazo({ resultado: r }: { resultado: Resultado }) {
+function TarjetaPlazo({
+  resultado: r,
+  t,
+}: {
+  resultado: Resultado;
+  t: Textos;
+}) {
   const { fechaLimite, estadoCalculo } = r.plazo;
   if (estadoCalculo !== "CALCULADA" || !fechaLimite)
     return (
@@ -803,12 +786,9 @@ function TarjetaPlazo({ resultado: r }: { resultado: Resultado }) {
         className="mt-5 shrink-0 gap-2 bg-muted px-5 py-4 text-lg ring-0 bajo:mt-3 bajo:py-3 bajo:text-base"
       >
         <h2 className="font-sans text-sm font-medium text-(--text-secondary)">
-          Plazo
+          {t.plazo}
         </h2>
-        <p>
-          No podemos confirmar la fecha límite. Consúltala en la web del
-          organismo que te escribe.
-        </p>
+        <p>{t.sinFecha}</p>
       </Card>
     );
 
@@ -823,25 +803,23 @@ function TarjetaPlazo({ resultado: r }: { resultado: Resultado }) {
         )}
       >
         <h2 className="font-sans text-sm font-medium">
-          {estado.tipo === "vencido"
-            ? "El plazo ya terminó"
-            : "Tienes hasta el"}
+          {estado.tipo === "vencido" ? t.terminado : t.hasta}
         </h2>
         <p className="font-heading text-[clamp(30px,8vw,42px)] leading-[1.1] first-letter:uppercase bajo:text-[28px]">
-          {fechaLarga(fechaLimite)}
+          {t.fecha(fechaLimite)}
         </p>
         {estado.tipo !== "vencido" && (
           <p className="mt-1 text-lg font-medium bajo:text-base">
             {estado.tipo === "en-plazo" &&
-              (estado.dias === 1
-                ? "Te queda 1 día"
-                : `Te quedan ${estado.dias} días`)}
-            {estado.tipo === "hoy" && "Hoy es el último día"}
+              (estado.dias === 1 ? t.queda1 : t.quedan(estado.dias))}
+            {estado.tipo === "hoy" && t.hoy}
           </p>
         )}
       </Card>
       {estado.tipo === "vencido" && (
-        <p className="mt-3 text-lg bajo:mt-2 bajo:text-base">{r.siYaVencio}</p>
+        <p className="mt-3 text-lg bajo:mt-2 bajo:text-base">
+          {r.siYaVencio || t.siYaVencio}
+        </p>
       )}
     </>
   );

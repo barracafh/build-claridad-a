@@ -3,12 +3,16 @@ export type Source = { nombre: string; url: string };
 const sinProtocolo = (url: string) =>
   url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
-export function Fuentes({ fuentes }: { fuentes: readonly Source[] }) {
+export function Fuentes({
+  fuentes,
+  titulo = "Fuentes oficiales",
+}: {
+  fuentes: readonly Source[];
+  titulo?: string;
+}) {
   return (
-    <aside aria-label="Fuentes oficiales" className="text-base">
-      <h3 className="text-sm font-medium text-(--text-secondary)">
-        Fuentes oficiales
-      </h3>
+    <aside aria-label={titulo} className="text-base">
+      <h3 className="text-sm font-medium text-(--text-secondary)">{titulo}</h3>
       <ul className="mt-3 divide-y overflow-hidden rounded-xl ring-1 ring-foreground/10">
         {fuentes.map((source) => (
           <li key={source.url}>

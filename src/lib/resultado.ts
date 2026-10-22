@@ -58,9 +58,9 @@ const aFecha = (iso: string) => {
 };
 
 // «viernes 23 de octubre»
-export const fechaLarga = (iso: string) =>
+export const fechaLarga = (iso: string, locale = "es-ES") =>
   aFecha(iso)
-    .toLocaleDateString("es-ES", {
+    .toLocaleDateString(locale, {
       weekday: "long",
       day: "numeric",
       month: "long",
@@ -135,8 +135,9 @@ export function deLectura(l: Lectura): Resultado {
       estadoCalculo: l.plazo.estado,
     },
     siYaVencio:
-      l.siYaVencio ??
-      "Aun así, suele poder presentarse la documentación o el pago fuera de plazo; consulta al organismo qué opciones quedan.",
+      // Si no viene, la pantalla pone un texto genérico en la lengua elegida
+      // (sin afirmar opciones que el documento no da).
+      l.siYaVencio ?? "",
     confianza: l.confianza ?? "MEDIA",
     // Guía opcional: se copia tal cual si vino.
     ...(l.guia ? { guia: l.guia } : {}),

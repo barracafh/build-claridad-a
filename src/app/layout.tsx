@@ -30,13 +30,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Saltar al contenido
         </a>
+        {children}
+        {/* El aviso de la plataforma, abajo: no compite con la pregunta. */}
         <p
           role="note"
-          className="bg-muted px-(--page-gutter) py-2 text-center text-sm text-(--text-secondary)"
+          className="shrink-0 bg-muted px-(--page-gutter) py-1.5 text-center text-sm text-(--text-secondary)"
         >
           Herramienta experimental. No es un servicio oficial.
         </p>
-        {children}
       </body>
     </html>
   );

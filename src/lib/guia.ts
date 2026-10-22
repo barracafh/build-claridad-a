@@ -12,7 +12,7 @@ export const SYSTEM_PROMPT_GUIA = `Eres quien le explica a un vecino, en corto, 
 
 - Habla de tú, con frases cortas y tono cercano, como se lo contarías a un vecino.
 - Sin jerga: si un término oficial es inevitable, dilo y tradúcelo en la misma frase (p. ej. «subsanar, o sea, completar lo que falta»).
-- Escribe en el idioma que te indico en el mensaje (castellano o valenciano).
+- Escribe en el idioma que te indico en el mensaje (castellano, catalán, valenciano, euskera, gallego o aranés).
 - texto: máximo 4 frases. pasos: máximo 4 pasos, cada paso una sola línea y accionable.
 - Solo afirma lo que esté en el texto de las webs descargadas o en la lectura. No inventes importes, plazos ni requisitos.
 - Si la web y la ley no coinciden, manda la ley y dilo en una frase. Caso conocido: la web de la DGT dice 10 días para identificar al conductor, pero el RDL 6/2015 art. 93.1 dice 20 días naturales; usa el plazo que diga la notificación y, si no consta, 20 días naturales.
@@ -21,7 +21,11 @@ export const SYSTEM_PROMPT_GUIA = `Eres quien le explica a un vecino, en corto, 
 
 Devuelve SOLO: {"texto": "...", "pasos": ["...", ...]}`;
 
-function promptUsuarioGuia(lectura: Lectura, leidas: Descarga[]): string {
+function promptUsuarioGuia(
+  lectura: Lectura,
+  leidas: Descarga[],
+  lengua?: string,
+): string {
   const conocidos = {
     emisor: lectura.emisor,
     tipoActo: lectura.tipoActo,
@@ -39,7 +43,9 @@ function promptUsuarioGuia(lectura: Lectura, leidas: Descarga[]): string {
   const webs = leidas
     .map((d, i) => `[${i + 1}] ${d.nombre} — ${d.url}\n${d.texto}`)
     .join("\n\n");
-  const idioma = lectura.idioma === "va" ? "valenciano" : "castellano";
+  // La lengua que eligió la persona; si no eligió, la del documento.
+  const idioma =
+    lengua ?? (lectura.idioma === "va" ? "valenciano" : "castellano");
   return `Idioma en el que debes escribir: ${idioma}.
 
 LO QUE YA SABEMOS DEL DOCUMENTO:
@@ -80,7 +86,10 @@ export function parsearGuia(respuesta: string): { texto: string; pasos: string[]
 }
 
 // Monta la guía (o null si no toca: emisor fuera del catálogo o todo fallido).
-async function prepararGuia(lectura: Lectura): Promise<Guia | null> {
+async function prepararGuia(
+  lectura: Lectura,
+  lengua?: string,
+): Promise<Guia | null> {
   const enlaces = elegirEnlaces(lectura);
   if (enlaces.length === 0) return null;
 
@@ -101,7 +110,7 @@ async function prepararGuia(lectura: Lectura): Promise<Guia | null> {
   try {
     const mensajes: Mensaje[] = [
       { role: "system", content: SYSTEM_PROMPT_GUIA },
-      { role: "user", content: promptUsuarioGuia(lectura, leidas) },
+      { role: "user", content: promptUsuarioGuia(lectura, leidas, lengua) },
     ];
     const cruda = parsearGuia(await completar(mensajes));
     if (!cruda) return null;
@@ -114,9 +123,12 @@ async function prepararGuia(lectura: Lectura): Promise<Guia | null> {
 // Devuelve la Lectura con guia y con los enlaces de la guía sumados a fuentes
 // (sin duplicar url) para que <Fuentes /> los pinte. Si la consulta falla
 // entera, la Lectura queda exactamente igual que ahora.
-export async function lecturaConGuia(lectura: Lectura): Promise<Lectura> {
+export async function lecturaConGuia(
+  lectura: Lectura,
+  lengua?: string,
+): Promise<Lectura> {
   try {
-    const guia = await prepararGuia(lectura);
+    const guia = await prepararGuia(lectura, lengua);
     if (!guia) return lectura;
     const vistas = new Set(lectura.fuentes.map((f) => f.url));
     const extra = guia.enlaces

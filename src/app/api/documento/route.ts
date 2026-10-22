@@ -10,6 +10,7 @@ import {
   SYSTEM_PROMPT,
 } from "../../../lib/extraccion";
 import { lecturaConGuia } from "../../../lib/guia";
+import { lenguaPorCodigo } from "../../../lib/lenguas";
 import { completar, type Mensaje } from "../../../lib/ia";
 import { procesarPdf } from "../../../lib/pdf";
 
@@ -44,6 +45,9 @@ export async function POST(req: Request) {
       "Falta el archivo. Sube un PDF o una foto en JPG o PNG.",
       "formato",
     );
+
+  // Lengua de la respuesta: solo una de las oficiales de src/lib/lenguas.ts.
+  const lengua = lenguaPorCodigo(textoFormulario(form.get("idioma")))?.prompt;
 
   const bytes = new Uint8Array(await archivo.arrayBuffer());
   const entrada = validarEntrada(bytes, archivo.type);
@@ -81,7 +85,7 @@ export async function POST(req: Request) {
       role: "user",
       content: [
         ...imagenes.map((url) => ({ type: "image_url" as const, image_url: { url } })),
-        { type: "text" as const, text: promptUsuario(texto) },
+        { type: "text" as const, text: promptUsuario(texto, lengua) },
       ],
     },
   ];
@@ -110,7 +114,7 @@ export async function POST(req: Request) {
   // La guía (webs oficiales + segunda llamada al modelo) es un extra: si
   // falla, lecturaConGuia devuelve la Lectura tal cual, sin convertirlo en
   // un error: la lectura del documento ya es válida.
-  return Response.json(await lecturaConGuia(lecturaBase), {
+  return Response.json(await lecturaConGuia(lecturaBase, lengua), {
     headers: cabeceraTiempos(inicio, msRaster, msModelo),
   });
 }
