@@ -16,6 +16,7 @@ import { procesarPdf } from "../../../lib/pdf";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const inicio = performance.now();
   const longitud = Number(req.headers.get("content-length"));
   if (Number.isFinite(longitud) && longitud > MAX_BYTES_BODY)
     return respuestaError(
@@ -72,6 +73,7 @@ export async function POST(req: Request) {
     ];
     texto = "";
   }
+  const msRaster = Math.round(performance.now() - inicio);
 
   const mensajes: Mensaje[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -85,6 +87,7 @@ export async function POST(req: Request) {
   ];
 
   let cruda: string;
+  const antesModelo = performance.now();
   try {
     cruda = await completar(mensajes);
   } catch {
@@ -94,6 +97,7 @@ export async function POST(req: Request) {
       "lectura",
     );
   }
+  const msModelo = Math.round(performance.now() - antesModelo);
   const extraccion = parsearExtraccion(cruda);
   if (!extraccion)
     return respuestaError(
@@ -106,7 +110,9 @@ export async function POST(req: Request) {
   // La guía (webs oficiales + segunda llamada al modelo) es un extra: si
   // falla, lecturaConGuia devuelve la Lectura tal cual, sin convertirlo en
   // un error: la lectura del documento ya es válida.
-  return Response.json(await lecturaConGuia(lecturaBase));
+  return Response.json(await lecturaConGuia(lecturaBase), {
+    headers: cabeceraTiempos(inicio, msRaster, msModelo),
+  });
 }
 
 // FormData también acepta strings; aquí solo nos vale el campo "fecha".
@@ -116,4 +122,13 @@ function textoFormulario(valor: FormDataEntryValue | null): string | null {
 
 function respuestaError(status: number, error: string, codigo: string) {
   return Response.json({ error, codigo }, { status });
+}
+
+// Milisegundos de rasterizado, de la llamada al modelo y del total, en una
+// cabecera fuera del JSON de Lectura. Solo cifras: jamás contenido del archivo.
+function cabeceraTiempos(inicio: number, msRaster: number, msModelo: number) {
+  const msTotal = Math.round(performance.now() - inicio);
+  return {
+    "x-tiempos-lectura": `raster=${msRaster};modelo=${msModelo};total=${msTotal}`,
+  };
 }
