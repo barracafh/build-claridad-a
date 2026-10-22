@@ -152,6 +152,7 @@ function extraerObjeto(respuesta: string): string | null {
 
 export function montarLectura(ex: ExtraccionModelo): Lectura {
   const fechaLimite = calcularFechaLimite(ex.plazo);
+  const vencido = estaVencido(fechaLimite);
   return {
     emisor: ex.emisor,
     tipoActo: ex.tipoActo,
@@ -162,12 +163,15 @@ export function montarLectura(ex: ExtraccionModelo): Lectura {
       estado: estadoDelPlazo(ex.plazo, fechaLimite),
       fechaNotificacion: ex.plazo.fechaNotificacion,
       fechaLimite,
-      vencido: estaVencido(fechaLimite),
+      vencido,
       fraseOriginal: ex.plazo.fraseOriginal,
       regla: ex.plazo.regla,
     },
     siNoHacesNada: ex.siNoHacesNada,
-    siYaVencio: ex.siYaVencio,
+    // El vencido lo decide el servidor, no el modelo: si el plazo no ha
+    // vencido (o no se pudo calcular) el campo queda a null aunque el modelo
+    // lo haya rellenado, para no colar un «el plazo venció» con plazo futuro.
+    siYaVencio: vencido ? ex.siYaVencio : null,
     sede: ex.sede,
     fuentes: ex.fuentes,
     aviso: AVISO_FIJO,
