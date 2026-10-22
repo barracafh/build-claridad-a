@@ -8,5 +8,9 @@ const basePath = `/${ficha.equipo}`;
 const config: NextConfig = {
   basePath,
   env: { NEXT_PUBLIC_BASE_PATH: basePath },
+  serverExternalPackages: ["mupdf"],
+  outputFileTracingIncludes: {
+    "/api/documento": ["./node_modules/mupdf/dist/mupdf-wasm.wasm"],
+  },
 };
 export default config;
