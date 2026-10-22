@@ -13,6 +13,17 @@ export type EstadoCalculo =
   | "FALTA_FECHA_NOTIFICACION"
   | "PLAZO_NO_IDENTIFICADO";
 
+// Guía corta construida tras la lectura: el servidor descarga 1 a 3 webs
+// oficiales del catálogo (src/lib/sedes.ts y src/lib/guia.ts) y el modelo
+// explica en corto cómo se resuelve. Opcional: la Lectura es válida sin ella.
+export type GuiaEnlace = { nombre: string; url: string; leida: boolean };
+
+export type Guia = {
+  texto: string; // máximo 4 frases
+  pasos: string[]; // máximo 4, una línea cada uno
+  enlaces: GuiaEnlace[]; // los que se intentó abrir; leida = si llegó texto
+};
+
 export type Lectura = {
   emisor: string | null;
   tipoActo: string | null;
@@ -30,6 +41,7 @@ export type Lectura = {
   siNoHacesNada: string;
   siYaVencio: string | null;
   sede: { nombre: string; url: string } | null;
+  guia?: Guia;
   fuentes: { nombre: string; url: string }[];
   aviso: string;
   idioma: string;

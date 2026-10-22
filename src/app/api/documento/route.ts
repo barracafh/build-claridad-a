@@ -9,6 +9,7 @@ import {
   promptUsuario,
   SYSTEM_PROMPT,
 } from "../../../lib/extraccion";
+import { lecturaConGuia } from "../../../lib/guia";
 import { completar, type Mensaje } from "../../../lib/ia";
 import { procesarPdf } from "../../../lib/pdf";
 
@@ -101,7 +102,11 @@ export async function POST(req: Request) {
       "lectura",
     );
   aplicarFechaUsuario(extraccion, textoFormulario(form.get("fecha")));
-  return Response.json(montarLectura(extraccion));
+  const lecturaBase = montarLectura(extraccion);
+  // La guía (webs oficiales + segunda llamada al modelo) es un extra: si
+  // falla, lecturaConGuia devuelve la Lectura tal cual, sin convertirlo en
+  // un error: la lectura del documento ya es válida.
+  return Response.json(await lecturaConGuia(lecturaBase));
 }
 
 // FormData también acepta strings; aquí solo nos vale el campo "fecha".
