@@ -1,5 +1,5 @@
 import type { Source } from "@/components/Fuentes";
-import type { Lectura } from "./lectura";
+import type { Guia, Lectura } from "./lectura";
 
 // Contrato entre la API y la pantalla. Versión reducida del esquema de
 // contexto.md, apartado 6.1: solo lo que la persona ve.
@@ -37,6 +37,7 @@ export type Resultado = {
   };
   siYaVencio: string; // qué queda por hacer si el plazo ya pasó
   confianza: "ALTA" | "MEDIA" | "BAJA";
+  guia?: Guia; // guía corta con webs oficiales; falta si la consulta falló
   fuentes: Source[];
 };
 
@@ -113,6 +114,9 @@ export function deLectura(l: Lectura): Resultado {
       l.siYaVencio ??
       "Aun así, suele poder presentarse la documentación o el pago fuera de plazo; consulta al organismo qué opciones quedan.",
     confianza: l.confianza ?? "MEDIA",
+    // Guía opcional: se copia tal cual si vino, y así src/datos/ejemplos.ts
+    // sigue compilando sin tocarlo.
+    ...(l.guia ? { guia: l.guia } : {}),
     fuentes: l.fuentes,
   };
 }
