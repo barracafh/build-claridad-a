@@ -3,7 +3,7 @@
 import * as mupdf from "mupdf";
 import { MAX_BYTES_IMAGEN, MAX_PAGINAS, MAX_PX } from "./entrada";
 
-const LADO_LARGO_OBJETIVO = 2200;
+const LADO_LARGO_OBJETIVO = 1600;
 const CALIDADES = [0.85, 0.7, 0.55, 0.4];
 
 export type Hoja = { dataUrl: string; bytes: number };
