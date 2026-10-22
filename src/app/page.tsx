@@ -36,7 +36,7 @@ export default function Home() {
           <p className="text-sm text-(--text-secondary)">
             Squad <span className="font-mono">{ficha.equipo}</span>
           </p>
-          <BotonAviso />
+          <BotonAviso discreto />
         </div>
       </footer>
     </>

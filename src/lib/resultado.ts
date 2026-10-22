@@ -1,5 +1,7 @@
 import type { Source } from "@/components/Fuentes";
 import type { Guia, Lectura } from "./lectura";
+import ficha from "../../ficha.json";
+import { esUrlPermitida } from "./sedes";
 
 // Contrato entre la API y la pantalla. Versión reducida del esquema de
 // contexto.md, apartado 6.1: solo lo que la persona ve.
@@ -84,19 +86,41 @@ export function estadoPlazo(
 // De lo que devuelve POST /api/documento (src/lib/lectura.ts) a lo que pinta
 // esta pantalla. Sin inventar datos: lo que no venga, con el texto genérico.
 export function deLectura(l: Lectura): Resultado {
-  const titular = l.tipoActo ?? primeraFrase(l.queDice);
+  // El titular, en lenguaje llano: la primera frase de la explicación. El
+  // nombre técnico del documento («Requerimiento de subsanación») va aparte.
+  // La guía (si vino) está escrita en lenguaje más llano: manda en el
+  // titular, y sus pasos y enlaces cubren lo que falte en la lectura.
+  const titular =
+    primeraFrase(l.guia?.texto ?? l.queDice) || l.tipoActo || "Tu carta";
+  const pasos =
+    l.queHacer.length > 0
+      ? l.queHacer.map((q) => q.texto)
+      : (l.guia?.pasos ?? []);
+  // Las URLs las propone el modelo: solo se enlazan las de dominios oficiales
+  // del catálogo (src/lib/sedes.ts), para que una carta manipulada no cuele
+  // un enlace de phishing con un nombre de confianza.
+  const enlaceGuia = l.guia?.enlaces.find(
+    (e) => e.leida && esUrlPermitida(e.url),
+  );
+  const sede =
+    l.sede && esUrlPermitida(l.sede.url)
+      ? l.sede
+      : enlaceGuia
+        ? { nombre: enlaceGuia.nombre, url: enlaceGuia.url }
+        : null;
+  const fuentes = l.fuentes.filter((f) => esUrlPermitida(f.url));
   return {
     emisor: l.emisor ?? "Documento oficial",
-    tipoActo: titular,
+    tipoActo: l.tipoActo ?? titular,
     titular,
     queDice: l.queDice,
     categoria: l.categoria ?? "HACER",
-    pasos: l.queHacer.map((q) => q.texto),
+    pasos,
     consecuencia: { claro: l.siNoHacesNada, literal: null },
-    donde: l.sede
+    donde: sede
       ? {
-          texto: `Puedes confirmarlo en la web oficial: ${l.sede.nombre}.`,
-          sede: l.sede,
+          texto: `Puedes confirmarlo en la web oficial: ${sede.nombre}.`,
+          sede,
         }
       : {
           texto:
@@ -114,10 +138,11 @@ export function deLectura(l: Lectura): Resultado {
       l.siYaVencio ??
       "Aun así, suele poder presentarse la documentación o el pago fuera de plazo; consulta al organismo qué opciones quedan.",
     confianza: l.confianza ?? "MEDIA",
-    // Guía opcional: se copia tal cual si vino, y así src/datos/ejemplos.ts
-    // sigue compilando sin tocarlo.
+    // Guía opcional: se copia tal cual si vino.
     ...(l.guia ? { guia: l.guia } : {}),
-    fuentes: l.fuentes,
+    // Regla 1 de la plataforma: toda respuesta cita una fuente oficial. Si el
+    // modelo no devuelve ninguna, se cita la norma de cómputo de plazos.
+    fuentes: fuentes.length > 0 ? fuentes : ficha.fuentes,
   };
 }
 
