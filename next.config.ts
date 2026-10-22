@@ -11,6 +11,7 @@ const config: NextConfig = {
   serverExternalPackages: ["mupdf"],
   outputFileTracingIncludes: {
     "/api/documento": ["./node_modules/mupdf/dist/mupdf-wasm.wasm"],
+    "/mcp": ["./node_modules/mupdf/dist/mupdf-wasm.wasm"],
   },
 };
 export default config;
