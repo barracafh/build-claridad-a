@@ -60,7 +60,7 @@ export function SelectorLengua() {
       >
         {LENGUAS.map((l) => (
           <option key={l.codigo} value={l.codigo} lang={l.html}>
-            {l.nombre}
+            {l.bandera ? `${l.bandera} ${l.nombre}` : l.nombre}
           </option>
         ))}
       </select>

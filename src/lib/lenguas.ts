@@ -3,6 +3,7 @@
 export type Lengua = {
   codigo: "es" | "ca" | "va" | "eu" | "gl" | "oc";
   nombre: string; // en su propia lengua, como se muestra en el selector
+  bandera?: string; // emoji delante del nombre (solo existe el de España)
   html: string; // atributo lang (BCP 47)
   locale: string; // para las fechas
   prompt: string; // cómo se nombra en las instrucciones al modelo
@@ -12,6 +13,7 @@ export const LENGUAS: readonly Lengua[] = [
   {
     codigo: "es",
     nombre: "Castellano",
+    bandera: "🇪🇸",
     html: "es",
     locale: "es-ES",
     prompt: "castellano",
