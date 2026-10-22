@@ -26,7 +26,14 @@ export async function completar(messages: Mensaje[]): Promise<string> {
           authorization: `Bearer ${HELMCODE_API_KEY}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ model: HELMCODE_MODEL, messages }),
+        body: JSON.stringify({
+          model: HELMCODE_MODEL,
+          messages,
+          // Menos razonamiento interno: para sacar un JSON de hechos no hace
+          // falta pensar largo y la generación es lo lento. Si la API lo
+          // rechazara, se quita.
+          reasoning_effort: "low",
+        }),
       },
     );
     if (reintentables.has(res.status) && intento < 2) {
