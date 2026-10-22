@@ -14,7 +14,9 @@ export async function completar(messages: Mensaje[]): Promise<string> {
   const { HELMCODE_API_KEY, HELMCODE_BASE_URL, HELMCODE_MODEL } = process.env;
   if (!HELMCODE_API_KEY || !HELMCODE_MODEL)
     throw new Error("Faltan HELMCODE_API_KEY o HELMCODE_MODEL en .env.local");
-  // Todos los equipos comparten límites: ante un 429, espera y reintenta.
+  // Todos los equipos comparten límites. Máximo 3 intentos en total; solo se
+  // reintenta en 429 y 502/503/504: un 4xx de validación no vuelve a irse.
+  const reintentables = new Set([429, 502, 503, 504]);
   for (let intento = 0; ; intento++) {
     const res = await fetch(
       `${HELMCODE_BASE_URL ?? "https://api.helmcode.com/v1"}/chat/completions`,
@@ -27,7 +29,7 @@ export async function completar(messages: Mensaje[]): Promise<string> {
         body: JSON.stringify({ model: HELMCODE_MODEL, messages }),
       },
     );
-    if (res.status === 429 && intento < 3) {
+    if (reintentables.has(res.status) && intento < 2) {
       const espera = Number(res.headers.get("retry-after")) || 2 ** intento;
       await new Promise((r) => setTimeout(r, Math.min(espera, 10) * 1000));
       continue;
