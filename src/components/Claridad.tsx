@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Camera, FileText, Lock, LoaderCircle } from "lucide-react";
+import { Camera, ChevronDown, FileText, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ruta } from "@/config/sitio";
 import type { Lectura } from "@/lib/lectura";
@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Fuentes } from "@/components/Fuentes";
-import { ejemploPorDefecto, ejemplos } from "@/datos/ejemplos";
 import {
   deLectura,
   estadoPlazo,
@@ -22,18 +21,20 @@ import {
 
 type Pantalla =
   | { tipo: "inicio" }
-  | { tipo: "ejemplos" }
   | { tipo: "confirmar"; archivo: File; vista: string | null }
-  | {
-      tipo: "leyendo";
-      resultado: Resultado | null;
-      ejemploFaltaFecha?: boolean;
-    }
+  | { tipo: "leyendo" }
   | { tipo: "falta-fecha" }
   | { tipo: "resultado"; resultado: Resultado; pagina: number };
 
+// Progreso de la lectura. La subida es real (bytes enviados); lo que tarda el
+// servidor no se puede medir, así que esa parte avanza por tiempo estimado.
+type Carga =
+  { fase: "subiendo"; subida: number } | { fase: "leyendo"; desde: number };
+
 // Límite del servidor (4 MB en la petición): se comprueba antes de subir.
 const MAX_BYTES = 4 * 1024 * 1024;
+// Lo que suele tardar la IA en leer una carta (medio minuto a dos minutos).
+const LECTURA_ESTIMADA_MS = 60_000;
 
 // Botones grandes: se usan con el pulgar y con poca vista.
 const grande = "h-14 w-full gap-3 rounded-xl text-lg bajo:h-12 bajo:text-base";
@@ -42,12 +43,15 @@ const sol = "bg-brand-yellow text-foreground";
 
 export function Claridad() {
   const [pantalla, setPantalla] = useState<Pantalla>({ tipo: "inicio" });
+  const [carga, setCarga] = useState<Carga>({ fase: "subiendo", subida: 0 });
+  const [aviso, setAviso] = useState<string | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
   const camara = useRef<HTMLInputElement>(null);
   const archivo = useRef<HTMLInputElement>(null);
   // La carta que se está leyendo: hace falta si el servidor pide la fecha
   // de notificación y hay que repetir la lectura con ella.
   const pendiente = useRef<File | null>(null);
+  const peticion = useRef<XMLHttpRequest | null>(null);
 
   // Al cambiar de pantalla, el foco va al titular (lectores de pantalla).
   const clave =
@@ -58,64 +62,78 @@ export function Claridad() {
     titulo.current?.focus();
   }, [clave]);
 
-  // Los ejemplos son datos inventados: se muestran al instante, sin IA.
-  useEffect(() => {
-    if (pantalla.tipo !== "leyendo") return;
-    if (pantalla.resultado) {
-      const t = setTimeout(
-        () =>
-          setPantalla({
-            tipo: "resultado",
-            resultado: pantalla.resultado!,
-            pagina: 0,
-          }),
-        2200,
-      );
-      return () => clearTimeout(t);
-    }
-    if (pantalla.ejemploFaltaFecha) {
-      const t = setTimeout(() => setPantalla({ tipo: "falta-fecha" }), 2200);
-      return () => clearTimeout(t);
-    }
-    // Con el archivo real, la respuesta llega al terminar la petición.
-  }, [pantalla]);
+  function volverConAviso(texto: string) {
+    setPantalla({ tipo: "inicio" });
+    setAviso(texto);
+  }
 
-  async function leerArchivo(f: File, fecha?: string) {
+  // XMLHttpRequest y no fetch: es lo único que informa del progreso de subida.
+  function leerArchivo(f: File, fecha?: string) {
     setAviso(null);
     pendiente.current = f;
-    setPantalla({ tipo: "leyendo", resultado: null });
-    try {
-      const datos = new FormData();
-      datos.append("documento", f);
-      if (fecha) datos.append("fecha", fecha);
-      const res = await fetch(ruta("/api/documento"), {
-        method: "POST",
-        body: datos,
-      });
-      if (!res.ok) {
-        const e = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        setPantalla({ tipo: "inicio" });
-        setAviso(
-          e?.error ??
+    setCarga({ fase: "subiendo", subida: 0 });
+    setPantalla({ tipo: "leyendo" });
+
+    const datos = new FormData();
+    datos.append("documento", f);
+    if (fecha) datos.append("fecha", fecha);
+
+    const xhr = new XMLHttpRequest();
+    peticion.current = xhr;
+    xhr.open("POST", ruta("/api/documento"));
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable)
+        setCarga({ fase: "subiendo", subida: e.loaded / e.total });
+    };
+    const aLeyendo = () =>
+      setCarga((c) =>
+        c.fase === "leyendo" ? c : { fase: "leyendo", desde: Date.now() },
+      );
+    xhr.upload.onload = aLeyendo;
+    // Hay navegadores que no informan de la subida de archivos pequeños: si
+    // en 1,5 s no llega nada, se pasa igualmente a «leyendo».
+    const respaldo = setTimeout(() => {
+      setCarga((c) =>
+        c.fase === "subiendo" && c.subida === 0
+          ? { fase: "leyendo", desde: Date.now() }
+          : c,
+      );
+    }, 1500);
+    xhr.onloadend = () => clearTimeout(respaldo);
+    xhr.onload = () => {
+      peticion.current = null;
+      let cuerpo: unknown = null;
+      try {
+        cuerpo = JSON.parse(xhr.responseText);
+      } catch {}
+      if (xhr.status < 200 || xhr.status >= 300 || !cuerpo) {
+        const error = (cuerpo as { error?: string } | null)?.error;
+        volverConAviso(
+          error ??
             "No se ha podido leer tu carta ahora mismo. Prueba otra vez en unos segundos.",
         );
         return;
       }
-      const lectura: Lectura = await res.json();
-      const resultado = deLectura(lectura);
+      const resultado = deLectura(cuerpo as Lectura);
       if (resultado.plazo.estadoCalculo === "FALTA_FECHA_NOTIFICACION") {
         setPantalla({ tipo: "falta-fecha" });
         return;
       }
       setPantalla({ tipo: "resultado", resultado, pagina: 0 });
-    } catch {
-      setPantalla({ tipo: "inicio" });
-      setAviso(
+    };
+    xhr.onerror = () => {
+      peticion.current = null;
+      volverConAviso(
         "No se ha podido leer tu carta ahora mismo. Comprueba tu conexión y prueba otra vez.",
       );
-    }
+    };
+    xhr.send(datos);
+  }
+
+  function cancelar() {
+    peticion.current?.abort();
+    peticion.current = null;
+    volverConAviso("Has cancelado la lectura. No se ha guardado nada.");
   }
 
   const vistaPrevia = pantalla.tipo === "confirmar" ? pantalla.vista : null;
@@ -129,24 +147,19 @@ export function Claridad() {
   function abrir(f: File) {
     // El servidor solo lee PDF, JPG y PNG (es lo que ve el modelo de visión).
     const tipoOk =
-      f.type === "" /* cámaras que no informan el tipo: lo decide el servidor */ ||
+      f.type ===
+        "" /* cámaras que no informan el tipo: lo decide el servidor */ ||
       f.type === "application/pdf" ||
       f.type === "image/jpeg" ||
       f.type === "image/png";
-    if (!tipoOk) {
-      setPantalla({ tipo: "inicio" });
-      setAviso(
+    if (!tipoOk)
+      return volverConAviso(
         `«${f.name}» no es un PDF ni una foto JPG o PNG. Prueba con la carta en PDF o con una foto.`,
       );
-      return;
-    }
-    if (f.size > MAX_BYTES) {
-      setPantalla({ tipo: "inicio" });
-      setAviso(
+    if (f.size > MAX_BYTES)
+      return volverConAviso(
         `«${f.name}» es demasiado grande (más de 4 MB). Baja su tamaño o calidad y vuelve a intentarlo.`,
       );
-      return;
-    }
     setAviso(null);
     setPantalla({
       tipo: "confirmar",
@@ -164,13 +177,10 @@ export function Claridad() {
   // Arrastrar y soltar desde el ordenador. Se escucha en toda la ventana para
   // que el navegador no abra el archivo por su cuenta al soltarlo fuera.
   const [arrastrando, setArrastrando] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
   const abrirRef = useRef(abrir);
   abrirRef.current = abrir;
   const aceptaArchivo =
-    pantalla.tipo === "inicio" ||
-    pantalla.tipo === "ejemplos" ||
-    pantalla.tipo === "confirmar";
+    pantalla.tipo === "inicio" || pantalla.tipo === "confirmar";
   const aceptaRef = useRef(aceptaArchivo);
   aceptaRef.current = aceptaArchivo;
   useEffect(() => {
@@ -302,72 +312,7 @@ export function Claridad() {
                 <FileText aria-hidden="true" className="size-6" />
                 Elegir un PDF o una foto
               </Button>
-              <Button
-                variant="ghost"
-                className="h-11 w-full text-base"
-                onClick={() => setPantalla({ tipo: "ejemplos" })}
-              >
-                Probar con una carta de ejemplo
-              </Button>
             </>
-          }
-        />
-      )}
-
-      {pantalla.tipo === "ejemplos" && (
-        <Vista
-          cuerpo={
-            <>
-              <h1
-                ref={titulo}
-                tabIndex={-1}
-                className="text-[clamp(28px,7vw,40px)] leading-[1.1] outline-none bajo:text-[26px]"
-              >
-                Elige una carta de ejemplo
-              </h1>
-              <p className="mt-3 text-lg text-(--text-secondary) bajo:text-base">
-                Son cartas inventadas, con datos ficticios.
-              </p>
-              <ul className="mt-6 grid gap-3 bajo:mt-3">
-                {ejemplos.map((e) => (
-                  <li key={e.id}>
-                    <Button
-                      variant="outline"
-                      className={cn(grande, "justify-start text-left")}
-                      onClick={() =>
-                        setPantalla({ tipo: "leyendo", resultado: e.resultado })
-                      }
-                    >
-                      <FileText aria-hidden="true" className="size-6" />
-                      <span className="truncate">{e.etiqueta}</span>
-                    </Button>
-                  </li>
-                ))}
-                <li>
-                  <Button
-                    variant="outline"
-                    className={cn(grande, "justify-start text-left")}
-                    onClick={() =>
-                      setPantalla({
-                        tipo: "leyendo",
-                        resultado: null,
-                        ejemploFaltaFecha: true,
-                      })
-                    }
-                  >
-                    <FileText aria-hidden="true" className="size-6" />
-                    <span className="truncate">
-                      Una carta sin fecha de llegada
-                    </span>
-                  </Button>
-                </li>
-              </ul>
-            </>
-          }
-          acciones={
-            <Button variant="secondary" className={grande} onClick={inicio}>
-              Volver
-            </Button>
           }
         />
       )}
@@ -420,26 +365,14 @@ export function Claridad() {
       )}
 
       {pantalla.tipo === "leyendo" && (
-        <div
-          role="status"
-          className="flex flex-1 flex-col items-center justify-center text-center"
-        >
-          <LoaderCircle
-            aria-hidden="true"
-            className="size-12 text-brand motion-safe:animate-spin"
-          />
-          <h1
-            ref={titulo}
-            tabIndex={-1}
-            className="mt-6 text-[clamp(28px,7vw,40px)] leading-[1.1] outline-none bajo:mt-3 bajo:text-[26px]"
-          >
-            Leyendo tu carta…
-          </h1>
-          <p className="mt-3 text-lg text-(--text-secondary) bajo:text-base">
-            Suele tardar entre medio minuto y dos minutos. No cierres la
-            página.
-          </p>
-        </div>
+        <Vista
+          cuerpo={<Progreso carga={carga} titulo={titulo} />}
+          acciones={
+            <Button variant="outline" className={grande} onClick={cancelar}>
+              Cancelar
+            </Button>
+          }
+        />
       )}
 
       {pantalla.tipo === "falta-fecha" && (
@@ -448,12 +381,7 @@ export function Claridad() {
           onSeguir={(fecha) => {
             const carta = pendiente.current;
             if (carta) leerArchivo(carta, fecha);
-            else
-              setPantalla({
-                tipo: "resultado",
-                resultado: ejemploPorDefecto,
-                pagina: 0,
-              });
+            else inicio();
           }}
           onVolver={inicio}
         />
@@ -483,13 +411,80 @@ function Vista({
 }) {
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-6 pb-4 bajo:pt-3">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-6 pb-4 select-text bajo:pt-3">
         {cuerpo}
       </div>
       <div className="grid shrink-0 gap-3 pb-4 bajo:gap-2 bajo:pb-2">
         {acciones}
       </div>
     </>
+  );
+}
+
+// Barra de progreso de subida y lectura. La subida es real; la lectura se
+// estima por tiempo y nunca llega al 100 % hasta que responde el servidor.
+function Progreso({
+  carga,
+  titulo,
+}: {
+  carga: Carga;
+  titulo: React.RefObject<HTMLHeadingElement | null>;
+}) {
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAhora(Date.now()), 250);
+    return () => clearInterval(t);
+  }, []);
+
+  let porcentaje: number;
+  let etapa: string;
+  if (carga.fase === "subiendo") {
+    porcentaje = 2 + 18 * carga.subida;
+    etapa = `Subiendo tu carta (${Math.round(carga.subida * 100)} %)`;
+  } else {
+    const t = Math.max(0, ahora - carga.desde);
+    porcentaje = 20 + 75 * (1 - Math.exp(-t / (LECTURA_ESTIMADA_MS / 2.3)));
+    etapa =
+      t < 10_000
+        ? "Leyendo el texto de la carta"
+        : t < 35_000
+          ? "Buscando qué te piden y el plazo"
+          : t < 90_000
+            ? "Preparando tu resumen"
+            : "Está tardando más de lo normal. Sigue esperando";
+  }
+  const valor = Math.round(porcentaje);
+
+  return (
+    <div className="flex flex-1 flex-col justify-center">
+      <h1
+        ref={titulo}
+        tabIndex={-1}
+        className="text-[clamp(28px,7vw,40px)] leading-[1.1] outline-none bajo:text-[26px]"
+      >
+        Leyendo tu carta…
+      </h1>
+      <div
+        role="progressbar"
+        aria-label="Progreso de la lectura"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={valor}
+        aria-valuetext={etapa}
+        className="mt-6 h-4 w-full overflow-hidden rounded-full bg-muted ring-1 ring-foreground/20"
+      >
+        <div
+          className="h-full rounded-full bg-foreground motion-safe:transition-[width] motion-safe:duration-300"
+          style={{ width: `${valor}%` }}
+        />
+      </div>
+      <p aria-live="polite" className="mt-4 text-lg font-medium bajo:text-base">
+        {etapa}
+      </p>
+      <p className="mt-2 text-base text-(--text-secondary)">
+        Suele tardar entre medio minuto y dos minutos. No cierres la página.
+      </p>
+    </div>
   );
 }
 
@@ -557,6 +552,9 @@ function FaltaFecha({
   );
 }
 
+const partes = ["Resumen", "Qué hacer", "Detalles"] as const;
+
+// El resultado en tres partes, con pestañas para saltar entre ellas.
 function PaginasResultado({
   resultado: r,
   pagina,
@@ -572,211 +570,180 @@ function PaginasResultado({
 }) {
   // Lo marcado vive solo en memoria mientras se ve el resultado.
   const [hechos, setHechos] = useState<boolean[]>([]);
-  const grupos = Array.from({ length: Math.ceil(r.pasos.length / 3) }, (_, g) =>
-    r.pasos.slice(g * 3, g * 3 + 3),
-  );
 
-  const h1 = (texto: string) => (
+  const h1 = (texto: string, extra?: string) => (
     <h1
       ref={titulo}
       tabIndex={-1}
-      className="text-[clamp(26px,6.5vw,38px)] leading-[1.12] tracking-[-0.01em] outline-none bajo:text-[26px]"
+      title={extra ? texto : undefined}
+      className={cn(
+        "text-[clamp(26px,6.5vw,36px)] leading-[1.12] tracking-[-0.01em] outline-none bajo:text-[24px]",
+        extra,
+      )}
     >
       {texto}
     </h1>
   );
 
-  const paginas: { cuerpo: ReactNode; sedeEsPrincipal?: boolean }[] = [
-    {
-      cuerpo: (
+  const cuerpos: ReactNode[] = [
+    <>
+      {/* Lo primero que se ve es la fecha: el emisor en una línea y el
+          titular en tres como mucho (el texto entero está en «Detalles»). */}
+      <p
+        title={r.emisor}
+        className="truncate font-mono text-sm tracking-[0.04em] text-(--text-secondary) uppercase"
+      >
+        {r.emisor}
+      </p>
+      <div className="mt-2">{h1(r.titular, "line-clamp-3")}</div>
+      <TarjetaPlazo resultado={r} />
+      <Badge
+        variant="outline"
+        className="mt-3 h-auto self-start py-1 text-sm whitespace-normal bajo:mt-2"
+      >
+        {textoCategoria[r.categoria]}
+      </Badge>
+      <p className="mt-4 text-lg bajo:mt-2 bajo:text-base">
+        <span className="font-medium">Si no haces nada: </span>
+        {r.consecuencia.claro}
+      </p>
+    </>,
+    <>
+      {h1("¿Qué tienes que hacer?")}
+      {r.pasos.length === 0 ? (
+        <p className="mt-4 rounded-xl bg-muted px-4 py-3 text-lg bajo:mt-2 bajo:text-base">
+          No hemos podido sacar los pasos de esta carta. Mira el resumen en
+          «Detalles» y confírmalo con el organismo que te escribe.
+        </p>
+      ) : (
         <>
-          <p className="font-mono text-sm tracking-[0.06em] text-(--text-secondary) uppercase">
-            {r.emisor}
+          <p className="mt-1 text-base text-(--text-secondary)">
+            Márcalos según los hagas. No se guarda.
           </p>
-          <div className="mt-2">{h1(r.titular)}</div>
-          <Badge
-            variant="outline"
-            className="mt-3 h-auto self-start py-1 text-sm whitespace-normal"
-          >
-            {textoCategoria[r.categoria]}
-          </Badge>
-          <TarjetaPlazo resultado={r} />
-        </>
-      ),
-    },
-    {
-      cuerpo: (
-        <>
-          {h1("¿Qué dice la carta?")}
-          <p className="mt-4 text-xl leading-[1.5] bajo:mt-2 bajo:text-lg">
-            {r.queDice}
-          </p>
-        </>
-      ),
-    },
-    {
-      cuerpo: (
-        <>
-          {h1("¿Y si no hago nada?")}
-          <p className="mt-4 text-xl leading-[1.5] bajo:mt-2 bajo:text-lg">
-            {r.consecuencia.claro}
-          </p>
-          {r.consecuencia.literal && (
-            <Card
-              render={<section />}
-              className="mt-6 shrink-0 gap-2 bg-muted px-5 py-5 text-base ring-0 bajo:mt-3 bajo:py-3"
-            >
-              <h2 className="font-sans text-sm font-medium text-(--text-secondary)">
-                Lo que dice tu carta
-              </h2>
-              <p className="text-lg bajo:text-base">
-                «{r.consecuencia.literal}»
-              </p>
-            </Card>
-          )}
-        </>
-      ),
-    },
-    // De 3 en 3 para que cada pantalla quepa sin scroll.
-    ...grupos.map((grupo, g) => ({
-      cuerpo: (
-        <>
-          {h1(
-            grupos.length > 1
-              ? `¿Qué tienes que hacer? (${g + 1} de ${grupos.length})`
-              : "¿Qué tienes que hacer?",
-          )}
-          {g === 0 && (
-            <p className="mt-2 text-base text-(--text-secondary)">
-              Puedes ir marcando lo que ya has hecho. No se guarda.
-            </p>
-          )}
-          <ol
-            start={g * 3 + 1}
-            className="mt-5 grid gap-4 bajo:mt-3 bajo:gap-2"
-          >
-            {grupo.map((paso, j) => {
-              const i = g * 3 + j;
-              return (
-                <li key={paso}>
-                  <label className="grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_28px] items-start gap-x-3 text-lg bajo:text-base">
-                    <span className="text-[24px] leading-[1.1] font-light text-brand tabular-nums">
-                      {i + 1}
-                    </span>
-                    <span>{paso}</span>
-                    <input
-                      type="checkbox"
-                      checked={hechos[i] ?? false}
-                      onChange={(e) =>
-                        setHechos((h) => {
-                          const n = [...h];
-                          n[i] = e.target.checked;
-                          return n;
-                        })
-                      }
-                      className="mt-1 size-6 accent-brand"
-                    />
-                  </label>
-                </li>
-              );
-            })}
+          {/* El texto queda fuera del checkbox para poder seleccionarlo y copiarlo. */}
+          <ol className="mt-4 grid gap-3 bajo:mt-2 bajo:gap-2">
+            {r.pasos.map((paso, i) => (
+              <li
+                key={paso}
+                className="grid grid-cols-[24px_minmax(0,1fr)_32px] items-start gap-x-3 text-lg bajo:text-base"
+              >
+                <span
+                  aria-hidden="true"
+                  className="text-[22px] leading-[1.15] font-light text-brand tabular-nums"
+                >
+                  {i + 1}
+                </span>
+                <span id={`paso-${i}`}>{paso}</span>
+                <input
+                  type="checkbox"
+                  aria-labelledby={`paso-${i}`}
+                  checked={hechos[i] ?? false}
+                  onChange={(e) =>
+                    setHechos((h) => {
+                      const n = [...h];
+                      n[i] = e.target.checked;
+                      return n;
+                    })
+                  }
+                  className="mt-0.5 size-7 cursor-pointer accent-brand"
+                />
+              </li>
+            ))}
           </ol>
         </>
-      ),
-    })),
-    {
-      sedeEsPrincipal: !!r.donde.sede,
-      cuerpo: (
-        <>
-          {h1("¿Dónde se hace?")}
-          <p className="mt-4 text-lg bajo:mt-2 bajo:text-base">
-            {r.donde.texto}
-          </p>
-          {r.donde.sede && (
-            <Card
-              render={<section />}
-              className="shrink-0 mt-6 gap-3 px-5 py-5 text-base bajo:mt-3 bajo:py-3"
-            >
-              <p className="text-sm text-(--text-secondary)">Web oficial</p>
-              <p className="text-lg leading-[1.35] font-medium bajo:text-base">
-                {r.donde.sede.nombre}
-              </p>
-              <p className="font-mono text-sm text-(--text-secondary) [overflow-wrap:anywhere]">
-                {new URL(r.donde.sede.url).hostname}
-              </p>
-              <a
-                href={r.donde.sede.url}
-                target="_blank"
-                rel="noreferrer"
-                className={cn(
-                  buttonVariants({ variant: "sunset" }),
-                  grande,
-                  "mt-2",
-                )}
-              >
-                Abrir la web oficial <span aria-hidden="true">↗</span>
-              </a>
-            </Card>
+      )}
+      {/* Dónde se hace: el enlace a la sede, o el texto si no la hay. */}
+      {r.donde.sede ? (
+        <a
+          href={r.donde.sede.url}
+          target="_blank"
+          rel="noreferrer"
+          className={cn(
+            buttonVariants({ variant: "outline" }),
+            "mt-4 h-auto min-h-12 w-full flex-col gap-0 rounded-xl py-2 text-base whitespace-normal bajo:mt-2",
           )}
-        </>
-      ),
-    },
-    {
-      cuerpo: (
-        <>
-          {h1("¿De dónde sale la fecha?")}
-          {r.plazo.textoLiteral && (
-            <blockquote className="mt-4 border-l-4 border-brand pl-4 text-lg bajo:mt-2 bajo:text-base">
+        >
+          <span className="text-sm font-normal text-(--text-secondary)">
+            Dónde se hace
+          </span>
+          <span>
+            {r.donde.sede.nombre} <span aria-hidden="true">↗</span>
+          </span>
+          {/* El dominio real, siempre a la vista. */}
+          <span className="font-mono text-sm font-normal text-(--text-secondary)">
+            {new URL(r.donde.sede.url).hostname}
+          </span>
+        </a>
+      ) : (
+        <p className="mt-4 text-base bajo:mt-2">
+          <span className="font-medium">Dónde se hace: </span>
+          {r.donde.texto}
+        </p>
+      )}
+    </>,
+    <>
+      {h1("De dónde sale todo esto")}
+      <div className="mt-4 grid gap-2 bajo:mt-2">
+        <Desplegable resumen="Qué dice la carta, completo">
+          <p>{r.queDice}</p>
+        </Desplegable>
+        {r.plazo.textoLiteral && (
+          <Desplegable resumen="La frase del plazo">
+            <blockquote className="border-l-4 border-brand pl-3">
               «{r.plazo.textoLiteral}»
             </blockquote>
-          )}
-          <p className="mt-4 font-mono text-sm bajo:mt-2">{r.plazo.regla}</p>
-          <p className="mt-4 text-base text-(--text-secondary) bajo:mt-2">
-            Calculado con el calendario nacional y de la Comunitat Valenciana.
-            No incluye festivos locales.
-          </p>
-        </>
-      ),
-    },
-    {
-      cuerpo: (
-        <>
-          {h1("Antes de actuar")}
-          <p className="mt-4 text-lg bajo:mt-2 bajo:text-base">
-            Esto es orientativo, no es asesoramiento legal. Confírmalo con el
-            organismo que te escribe.
-          </p>
-          <div className="mt-5 bajo:mt-3">
-            <Fuentes fuentes={r.fuentes} />
-          </div>
-        </>
-      ),
-    },
+            <p className="mt-2 font-mono text-sm">{r.plazo.regla}</p>
+            <p className="mt-2 text-(--text-secondary)">
+              Calculado con el calendario nacional y de la Comunitat Valenciana.
+              No incluye festivos locales.
+            </p>
+          </Desplegable>
+        )}
+        {r.consecuencia.literal && (
+          <Desplegable resumen="Lo que pasa si no haces nada">
+            <p>«{r.consecuencia.literal}»</p>
+          </Desplegable>
+        )}
+      </div>
+      <p className="mt-4 text-base text-(--text-secondary) bajo:mt-2">
+        Orientativo, no es asesoramiento legal. Confírmalo con quien te escribe.
+      </p>
+      <div className="mt-4 bajo:mt-2">
+        <Fuentes fuentes={r.fuentes} />
+      </div>
+    </>,
   ];
 
-  const actual = paginas[pagina];
-  const ultima = pagina === paginas.length - 1;
+  const ultima = pagina === cuerpos.length - 1;
 
   return (
     <>
-      <p className="flex shrink-0 items-center justify-between pt-4 font-mono text-sm tracking-[0.06em] text-(--text-secondary) uppercase">
-        <span>
-          Paso {pagina + 1} de {paginas.length}
-        </span>
-        <span aria-hidden="true" className="flex gap-1.5">
-          {paginas.map((_, i) => (
-            <span
-              key={i}
-              className={cn(
-                "size-2 rounded-full",
-                i === pagina ? "bg-brand" : "bg-foreground/30",
-              )}
-            />
+      <nav
+        aria-label="Partes del resultado"
+        className="shrink-0 pt-4 bajo:pt-2"
+      >
+        <ol className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
+          {partes.map((parte, i) => (
+            <li key={parte}>
+              <button
+                type="button"
+                aria-current={i === pagina ? "step" : undefined}
+                onClick={() => irA(i)}
+                className={cn(
+                  "h-11 w-full rounded-lg text-base font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50 bajo:h-10",
+                  i === pagina
+                    ? "bg-foreground text-background"
+                    : "text-foreground hover:bg-background",
+                )}
+              >
+                {parte}
+              </button>
+            </li>
           ))}
-        </span>
-      </p>
+        </ol>
+      </nav>
       <Vista
-        cuerpo={actual.cuerpo}
+        cuerpo={cuerpos[pagina]}
         acciones={
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
             <Button
@@ -787,16 +754,42 @@ function PaginasResultado({
               {pagina === 0 ? "Otra carta" : "Atrás"}
             </Button>
             <Button
-              variant={actual.sedeEsPrincipal ? "outline" : "sunset"}
+              variant="sunset"
               className={grande}
               onClick={() => (ultima ? onTerminar() : irA(pagina + 1))}
             >
-              {ultima ? "Terminar" : "Siguiente"}
+              {ultima ? "Leer otra carta" : `Siguiente: ${partes[pagina + 1]}`}
             </Button>
           </div>
         }
       />
     </>
+  );
+}
+
+// Bloque plegable nativo (details/summary): accesible con teclado y lector.
+// Comparten nombre para que solo haya uno abierto y la pantalla no crezca.
+function Desplegable({
+  resumen,
+  children,
+}: {
+  resumen: string;
+  children: ReactNode;
+}) {
+  return (
+    <details
+      name="detalle"
+      className="group rounded-xl ring-1 ring-foreground/15"
+    >
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-base font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+        {resumen}
+        <ChevronDown
+          aria-hidden="true"
+          className="size-5 shrink-0 motion-safe:transition-transform group-open:rotate-180"
+        />
+      </summary>
+      <div className="px-4 pb-4 text-base">{children}</div>
+    </details>
   );
 }
 
@@ -807,7 +800,7 @@ function TarjetaPlazo({ resultado: r }: { resultado: Resultado }) {
     return (
       <Card
         render={<section />}
-        className="shrink-0 mt-6 gap-2 bg-muted px-5 py-5 text-lg ring-0 bajo:mt-3 bajo:text-base bajo:py-3"
+        className="mt-5 shrink-0 gap-2 bg-muted px-5 py-4 text-lg ring-0 bajo:mt-3 bajo:py-3 bajo:text-base"
       >
         <h2 className="font-sans text-sm font-medium text-(--text-secondary)">
           Plazo
@@ -825,7 +818,7 @@ function TarjetaPlazo({ resultado: r }: { resultado: Resultado }) {
       <Card
         render={<section />}
         className={cn(
-          "mt-6 shrink-0 gap-1 px-5 py-5 ring-0 bajo:mt-3 bajo:py-3",
+          "mt-5 shrink-0 gap-1 px-5 py-4 ring-0 bajo:mt-3 bajo:py-3",
           sol,
         )}
       >
@@ -834,7 +827,7 @@ function TarjetaPlazo({ resultado: r }: { resultado: Resultado }) {
             ? "El plazo ya terminó"
             : "Tienes hasta el"}
         </h2>
-        <p className="font-heading text-[clamp(30px,8vw,44px)] leading-[1.1] first-letter:uppercase bajo:text-[30px]">
+        <p className="font-heading text-[clamp(30px,8vw,42px)] leading-[1.1] first-letter:uppercase bajo:text-[28px]">
           {fechaLarga(fechaLimite)}
         </p>
         {estado.tipo !== "vencido" && (
@@ -848,7 +841,7 @@ function TarjetaPlazo({ resultado: r }: { resultado: Resultado }) {
         )}
       </Card>
       {estado.tipo === "vencido" && (
-        <p className="mt-4 text-lg bajo:mt-2 bajo:text-base">{r.siYaVencio}</p>
+        <p className="mt-3 text-lg bajo:mt-2 bajo:text-base">{r.siYaVencio}</p>
       )}
     </>
   );
