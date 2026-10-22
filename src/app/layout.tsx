@@ -22,7 +22,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es" className={`${geist.variable} ${geistMono.variable}`}>
-      <body>
+      {/* Alto fijo de la pantalla: la página no hace scroll. */}
+      <body className="flex h-dvh flex-col overflow-hidden">
         <a
           href="#contenido"
           className="fixed top-2 left-2 z-50 inline-flex min-h-11 -translate-y-[calc(100%+16px)] items-center rounded-xl bg-foreground px-4 text-[15px] font-medium text-background focus-visible:translate-y-0"
