@@ -7,7 +7,7 @@ if (!path) {
   console.error("Usage: bun scripts/mcp-document.mjs <fictional.pdf|jpg|png>");
   process.exit(1);
 }
-const endpoint = new URL(process.env.MCP_URL ?? "https://build.barraca.house/claridad-a/mcp");
+const endpoint = new URL(process.env.MCP_URL ?? "https://build.barraca.house/punto-atencion-ciudadana/claridad-a/mcp");
 if (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && ["localhost", "127.0.0.1"].includes(endpoint.hostname))) {
   throw new Error("Use HTTPS for remote MCP endpoints.");
 }
